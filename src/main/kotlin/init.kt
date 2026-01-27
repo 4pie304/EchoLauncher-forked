@@ -79,10 +79,14 @@ fun main(args: Array<String>) {
         }
     }
 
+    val statusLabel = JLabel("Initializing...")
+    val splash = createAndShowSplashScreen(statusLabel)
+
     globalPathManager = PathManager(PathManager.getDefaultAppDataDirectory())
     val isFirstRun = globalPathManager.isFirstRunRequired()
 
     runBlocking(Dispatchers.IO) {
+        SwingUtilities.invokeLater { statusLabel.text = "Loading configuration..." }
         if (isFirstRun) {
             globalPathManager.createRequiredDirectories()
             DatabaseManager.init(globalPathManager)
@@ -92,7 +96,7 @@ fun main(args: Array<String>) {
 
         globalSettingsManager = SettingsManager(globalPathManager)
         val settings = globalSettingsManager.loadSettings()
-        Locale.setDefault(Locale(settings.language))
+        Locale.setDefault(Locale.forLanguageTag(settings.language))
 
         globalBuildManager = BuildManager(globalPathManager)
         globalAccountManager = AccountManager(globalPathManager)
@@ -104,9 +108,6 @@ fun main(args: Array<String>) {
 
         ImageLoader.init(globalCacheManager)
     }
-
-    val statusLabel = JLabel("Initializing...")
-    val splash = createAndShowSplashScreen(statusLabel)
 
     CoroutineScope(Dispatchers.IO).launch {
         runCatching {

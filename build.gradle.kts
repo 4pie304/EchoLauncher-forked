@@ -76,6 +76,7 @@ repositories {
 }
 
 dependencies {
+    implementation(project(":core"))
     implementation(compose.desktop.currentOs)
     implementation(compose.components.resources)
     implementation(compose.materialIconsExtended)

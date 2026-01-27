@@ -11,8 +11,10 @@ package ui.screens
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.*
@@ -23,6 +25,7 @@ import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -30,11 +33,15 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalFocusManager
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -45,6 +52,7 @@ import kotlinx.coroutines.launch
 import ui.viewmodel.HomeViewModel
 import ui.widgets.AvatarImage
 import ui.widgets.ImageLoader
+import ui.widgets.SquircleShape
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -115,42 +123,150 @@ private fun HomeTopAppBar(
     TopAppBar(
         title = {
             Row(
-                modifier = Modifier.fillMaxWidth().padding(end = 16.dp),
+                modifier = Modifier.fillMaxWidth().padding(start = 16.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.End
+                horizontalArrangement = Arrangement.Start
             ) {
-                TextField(
-                    value = searchQuery,
-                    onValueChange = onSearchQueryChange,
-                    placeholder = { Text("Поиск...") },
-                    modifier = Modifier.width(350.dp).height(50.dp),
-                    singleLine = true,
-                    shape = RoundedCornerShape(50),
-                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Поиск") },
-                    colors = TextFieldDefaults.colors(
-                        focusedIndicatorColor = Color.Transparent,
-                        unfocusedIndicatorColor = Color.Transparent,
-                        disabledIndicatorColor = Color.Transparent
+                // Аватар слева
+                IconButton(onClick = onOpenAccountManager) {
+                    AvatarImage(
+                        account = viewModel.currentAccount,
+                        modifier = Modifier.size(40.dp).clip(SquircleShape)
                     )
-                )
+                }
+
                 Spacer(Modifier.width(16.dp))
+
+                // Поисковая строка
+                ExpandableSearchBar(
+                    searchQuery = searchQuery,
+                    onSearchQueryChange = onSearchQueryChange
+                )
+
+                Spacer(Modifier.width(16.dp))
+
                 FilledTonalButton(onClick = onAddBuildClick) {
                     Text("Создать")
                 }
-            }
-        },
-        actions = {
-            IconButton(onClick = onOpenAccountManager) {
-                AvatarImage(
-                    account = viewModel.currentAccount,
-                    modifier = Modifier.size(40.dp).clip(RoundedCornerShape(8.dp))
-                )
             }
         },
         colors = TopAppBarDefaults.topAppBarColors(
             containerColor = MaterialTheme.colorScheme.surface
         )
     )
+}
+
+@Composable
+private fun ExpandableSearchBar(
+    searchQuery: String,
+    onSearchQueryChange: (String) -> Unit
+) {
+    var isExpanded by remember { mutableStateOf(false) }
+    // Флаг, указывающий, что поле уже получало фокус.
+    // Нужен, чтобы onFocusChanged не закрывал поле сразу при создании, когда фокус еще не пришел.
+    var wasFocused by remember { mutableStateOf(false) }
+    
+    val focusRequester = remember { FocusRequester() }
+    val focusManager = LocalFocusManager.current
+
+    val width by animateDpAsState(
+        targetValue = if (isExpanded) 300.dp else 48.dp,
+        animationSpec = spring(stiffness = Spring.StiffnessLow)
+    )
+
+    Box(
+        modifier = Modifier
+            .height(48.dp)
+            .width(width)
+            .clip(RoundedCornerShape(24.dp))
+            .background(MaterialTheme.colorScheme.surfaceVariant)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null
+            ) {
+                if (!isExpanded) {
+                    isExpanded = true
+                }
+            }
+    ) {
+        Row(
+            modifier = Modifier.fillMaxSize(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Иконка поиска
+            IconButton(
+                onClick = {
+                    if (!isExpanded) {
+                        isExpanded = true
+                    } else {
+                        focusRequester.requestFocus()
+                    }
+                }
+            ) {
+                Icon(Icons.Default.Search, contentDescription = "Поиск")
+            }
+
+            // Поле ввода и кнопка закрытия
+            if (isExpanded) {
+                BasicTextField(
+                    value = searchQuery,
+                    onValueChange = onSearchQueryChange,
+                    modifier = Modifier
+                        .weight(1f)
+                        .focusRequester(focusRequester)
+                        .onFocusChanged { focusState ->
+                            if (focusState.isFocused) {
+                                wasFocused = true
+                            }
+                            // Закрываем только если фокус был потерян ПОСЛЕ того, как он был получен,
+                            // и поле пустое.
+                            if (!focusState.isFocused && wasFocused && searchQuery.isEmpty()) {
+                                isExpanded = false
+                                wasFocused = false // Сбрасываем флаг
+                            }
+                        },
+                    singleLine = true,
+                    textStyle = MaterialTheme.typography.bodyLarge.copy(
+                        color = MaterialTheme.colorScheme.onSurface
+                    ),
+                    cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
+                    decorationBox = { innerTextField ->
+                        Box(contentAlignment = Alignment.CenterStart) {
+                            if (searchQuery.isEmpty()) {
+                                Text(
+                                    "Поиск...",
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                                )
+                            }
+                            innerTextField()
+                        }
+                    }
+                )
+
+                IconButton(
+                    onClick = {
+                        onSearchQueryChange("")
+                        isExpanded = false
+                        wasFocused = false
+                        focusManager.clearFocus()
+                    }
+                ) {
+                    Icon(Icons.Default.Close, contentDescription = "Закрыть")
+                }
+            }
+        }
+    }
+
+    LaunchedEffect(isExpanded) {
+        if (isExpanded) {
+            // Небольшая задержка, чтобы UI успел перестроиться
+            delay(50)
+            focusRequester.requestFocus()
+        } else {
+            focusManager.clearFocus()
+        }
+    }
 }
 
 @Composable

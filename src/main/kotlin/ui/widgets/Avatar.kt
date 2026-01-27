@@ -9,52 +9,86 @@
 package ui.widgets
 
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.shape.GenericShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material3.Icon
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.res.painterResource
-import org.jetbrains.compose.resources.painterResource // Используем painterResource из org.jetbrains.compose.resources
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Path
 import funlauncher.auth.Account
 import funlauncher.auth.MicrosoftAccount
 import funlauncher.auth.OfflineAccount
+import kotlin.math.abs
+import kotlin.math.pow
+import kotlin.math.sign
+
+// Форма Squircle (суперэллипс)
+val SquircleShape = GenericShape { size, _ ->
+    val n = 4.8 // Увеличили степень для более выраженной квадратной формы
+    val w = size.width / 2f
+    val h = size.height / 2f
+    
+    val path = Path()
+    val points = 200 // Увеличили количество точек для плавности
+    
+    for (i in 0..points) {
+        val t = (i.toFloat() / points) * 2 * Math.PI
+        val cosT = kotlin.math.cos(t)
+        val sinT = kotlin.math.sin(t)
+        
+        val x = w + w * abs(cosT).pow(2.0 / n) * sign(cosT)
+        val y = h + h * abs(sinT).pow(2.0 / n) * sign(sinT)
+        
+        if (i == 0) {
+            path.moveTo(x.toFloat(), y.toFloat())
+        } else {
+            path.lineTo(x.toFloat(), y.toFloat())
+        }
+    }
+    path.close()
+    
+    addPath(path)
+}
 
 @Composable
 fun AvatarImage(account: Account?, modifier: Modifier = Modifier) {
-    when (account) {
-        is MicrosoftAccount -> {
-            val avatarUrl = "https://crafatar.com/avatars/${account.uuid}?size=64&overlay"
-            val imageBitmap = ImageLoader.rememberImageBitmapFromUrl(avatarUrl)
+    // Применяем форму сквиркла к модификатору
+    val clippedModifier = modifier.clip(SquircleShape)
 
-            if (imageBitmap != null) {
-                Image(
-                    bitmap = imageBitmap,
-                    contentDescription = "Avatar of ${account.username}",
-                    modifier = modifier
-                )
-            } else {
-                // Placeholder while loading or if loading fails
-                Icon(
-                    imageVector = Icons.Default.AccountCircle,
-                    contentDescription = "Loading Avatar",
-                    modifier = modifier
-                )
-            }
-        }
-        is OfflineAccount -> {
-            // Возвращаем к строковому пути, предполагая, что ресурс находится в папке drawable
-            Image(
-                painter = painterResource("steve_head.png"),
-                contentDescription = "Offline Account Avatar",
-                modifier = modifier
-            )
-        }
-        else -> {
-            Icon(
-                imageVector = Icons.Default.AccountCircle,
+    // Определяем URL аватара
+    val avatarUrl = when (account) {
+        is MicrosoftAccount -> "https://mc-heads.net/avatar/${account.username}"
+        is OfflineAccount -> "https://mc-heads.net/avatar/${account.username}" // Для оффлайн тоже пробуем получить по нику (скин по нику)
+        else -> "https://mc-heads.net/avatar/notch" // Дефолтный (или если аккаунт null)
+    }
+
+    val imageBitmap = ImageLoader.rememberImageBitmapFromUrl(avatarUrl)
+
+    if (imageBitmap != null) {
+        Image(
+            bitmap = imageBitmap,
+            contentDescription = "Avatar of ${account?.username ?: "Unknown"}",
+            modifier = clippedModifier
+        )
+    } else {
+        // Если не загрузилось, показываем плейсхолдер (Notch)
+        // Можно использовать локальный ресурс или просто иконку, но по запросу - Notch
+        val placeholderUrl = "https://mc-heads.net/avatar/notch"
+        val placeholderBitmap = ImageLoader.rememberImageBitmapFromUrl(placeholderUrl)
+        
+        if (placeholderBitmap != null) {
+             Image(
+                bitmap = placeholderBitmap,
                 contentDescription = "Default Avatar",
-                modifier = modifier
+                modifier = clippedModifier
+            )
+        } else {
+             Icon(
+                imageVector = Icons.Default.AccountCircle,
+                contentDescription = "Loading Avatar",
+                modifier = clippedModifier
             )
         }
     }

@@ -54,6 +54,9 @@ class AppViewModel(
     var isLaunchingBuildId by mutableStateOf<String?>(null)
     var showCheckmark by mutableStateOf(false)
 
+    // Added runningBuild property to fix the error in HomeViewModel
+    var runningBuild by mutableStateOf<MinecraftBuild?>(null)
+
     init {
         pollDaemonStatus()
         synchronizeBuilds()
@@ -67,6 +70,7 @@ class AppViewModel(
                     daemonStatus = newStatus
                     if (newStatus == "STOPPED") {
                         isLaunchingBuildId = null
+                        runningBuild = null // Reset running build when daemon stops
                     }
                 }
                 delay(2000) // Poll every 2 seconds
@@ -115,10 +119,12 @@ class AppViewModel(
                     envVars = finalEnvVars
                 )
             }
+            runningBuild = build // Set running build on successful launch
         }.onFailure { e ->
             e.printStackTrace()
             errorDialogMessage = "Ошибка запуска: ${e.message}"
             isLaunchingBuildId = null
+            runningBuild = null
         }
     }
 
