@@ -82,6 +82,23 @@ class VersionManager(pathManager: PathManager) {
     }
 
     suspend fun getForgeVersions(): List<ForgeVersion> {
+        // 1. Попытка прочитать новый упрощенный формат от локального сервера
+        val simpleCacheFile = cacheDir.resolve("forge_versions_simple.json")
+        if (simpleCacheFile.exists()) {
+            try {
+                val versionsList = json.decodeFromString<List<String>>(simpleCacheFile.readText())
+                return versionsList.map { versionString ->
+                    // Ожидаемый формат: "1.20.1-47.1.0" (mcVersion-forgeVersion)
+                    val mcVersion = versionString.substringBeforeLast('-')
+                    val forgeVersion = versionString.substringAfterLast('-')
+                    ForgeVersion(mcVersion, forgeVersion)
+                }
+            } catch (e: Exception) {
+                log("Ошибка чтения упрощенного кэша Forge: ${e.message}. Пробуем старый формат.")
+            }
+        }
+
+        // 2. Резервная логика (старый формат)
         val cacheFile = cacheDir.resolve("forge_versions.json")
         if (!cacheFile.exists()) {
             log("Кэш версий Forge не найден.")
@@ -146,6 +163,22 @@ class VersionManager(pathManager: PathManager) {
     }
 
     suspend fun getNeoForgeVersions(): List<NeoForgeVersion> {
+        // 1. Попытка прочитать новый упрощенный формат от локального сервера
+        val simpleCacheFile = cacheDir.resolve("neoforge_versions_simple.json")
+        if (simpleCacheFile.exists()) {
+            try {
+                val versionsList = json.decodeFromString<List<String>>(simpleCacheFile.readText())
+                return versionsList.mapNotNull { neoVersion ->
+                    getMcVersionFromNeoForgeVersion(neoVersion)?.let { mcVersion ->
+                        NeoForgeVersion(mcVersion, neoVersion)
+                    }
+                }
+            } catch (e: Exception) {
+                log("Ошибка чтения упрощенного кэша NeoForge: ${e.message}. Пробуем старый формат.")
+            }
+        }
+
+        // 2. Резервная логика (старый формат XML)
         val cacheFile = cacheDir.resolve("neoforge_versions.xml")
         if (!cacheFile.exists()) {
             log("Кэш версий NeoForge не найден.")

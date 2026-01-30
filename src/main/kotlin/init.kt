@@ -102,7 +102,7 @@ fun main(args: Array<String>) {
         globalAccountManager = AccountManager(globalPathManager)
         globalJavaManager = JavaManager(globalPathManager)
         globalJavaDownloader = JavaDownloader(globalPathManager, globalJavaManager)
-        globalCacheManager = CacheManager(globalPathManager)
+        globalCacheManager = CacheManager(globalPathManager, globalSettingsManager) // Передаем SettingsManager
         globalModrinthApi = ModrinthApi(globalCacheManager)
         globalVersionMetadataFetcher = VersionMetadataFetcher(globalBuildManager, globalPathManager)
 
@@ -111,11 +111,12 @@ fun main(args: Array<String>) {
 
     CoroutineScope(Dispatchers.IO).launch {
         runCatching {
-            globalVersionMetadataFetcher.prefetchVersionMetadata { status ->
+            // Обновляем метаданные через CacheManager
+            globalCacheManager.refreshMetadata { status ->
                 SwingUtilities.invokeLater { statusLabel.text = status }
             }
         }.onFailure {
-            println("Warning: Failed to prefetch version metadata in background: ${it.stackTraceToString()}")
+            println("Warning: Failed to refresh metadata: ${it.stackTraceToString()}")
         }
     }
 
