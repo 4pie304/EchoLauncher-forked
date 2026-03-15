@@ -43,11 +43,7 @@ class VersionMetadataFetcher(private val buildManager: BuildManager, private val
 
     private fun log(message: String) = println("[VersionFetcher] $message")
 
-    // Этот метод больше не используется для префетчинга, так как логика перенесена в CacheManager.
-    // Оставляем его пустым или удаляем, чтобы не дублировать логику.
-    // Но так как он может вызываться из других мест, лучше оставить его как заглушку или делегировать CacheManager,
-    // если бы у нас был доступ к нему. Но здесь нет доступа к CacheManager.
-    // Поэтому просто убираем логику префетчинга отсюда, так как она теперь в CacheManager.
+
     suspend fun prefetchVersionMetadata(onStatusUpdate: (String) -> Unit = {}) {
         log("VersionMetadataFetcher.prefetchVersionMetadata is deprecated. Use CacheManager.refreshMetadata instead.")
     }

@@ -1,8 +1,11 @@
 package ui.widgets
 
 import androidx.compose.runtime.*
-import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.painter.BitmapPainter
+import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.loadImageBitmap
+import androidx.compose.ui.res.loadSvgPainter
 import funlauncher.managers.CacheManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -11,38 +14,61 @@ import java.io.ByteArrayOutputStream
 import java.io.File
 import java.net.HttpURLConnection
 import java.net.URL
+import java.security.MessageDigest
 import java.util.concurrent.ConcurrentHashMap
 
 object ImageLoader {
-    private val inMemoryCache = ConcurrentHashMap<String, ImageBitmap>()
-    private lateinit var cacheManager: CacheManager // Will be initialized in main
+    private val inMemoryCache = ConcurrentHashMap<String, Painter>()
+    private lateinit var cacheManager: CacheManager
 
     fun init(cacheManager: CacheManager) {
         this.cacheManager = cacheManager
     }
 
+    private fun hashKey(key: String): String {
+        return try {
+            val digest = MessageDigest.getInstance("MD5")
+            digest.update(key.toByteArray())
+            val messageDigest = digest.digest()
+            val hexString = StringBuilder()
+            for (aMessageDigest in messageDigest) {
+                var h = Integer.toHexString(0xFF and aMessageDigest.toInt())
+                while (h.length < 2) h = "0$h"
+                hexString.append(h)
+            }
+            hexString.toString()
+        } catch (e: Exception) {
+            key.hashCode().toString()
+        }
+    }
+
     @Composable
-    fun rememberImageBitmap(filePath: String?): ImageBitmap? {
-        var imageBitmap by remember(filePath) { mutableStateOf<ImageBitmap?>(null) }
+    fun rememberImagePainter(filePath: String?): Painter? {
+        var painter by remember(filePath) { mutableStateOf<Painter?>(null) }
+        val density = LocalDensity.current
 
         LaunchedEffect(filePath) {
             if (filePath == null) {
-                imageBitmap = null
+                painter = null
                 return@LaunchedEffect
             }
 
             if (inMemoryCache.containsKey(filePath)) {
-                imageBitmap = inMemoryCache[filePath]
+                painter = inMemoryCache[filePath]
                 return@LaunchedEffect
             }
 
-            imageBitmap = withContext(Dispatchers.IO) {
+            painter = withContext(Dispatchers.IO) {
                 val file = File(filePath)
                 if (file.exists()) {
                     try {
                         file.inputStream().use { stream ->
-                            loadImageBitmap(stream).also { bitmap ->
-                                inMemoryCache[filePath] = bitmap
+                            if (filePath.endsWith(".svg", ignoreCase = true)) {
+                                loadSvgPainter(stream, density)
+                            } else {
+                                BitmapPainter(loadImageBitmap(stream))
+                            }.also {
+                                inMemoryCache[filePath] = it
                             }
                         }
                     } catch (e: Exception) {
@@ -54,61 +80,82 @@ object ImageLoader {
                 }
             }
         }
-        return imageBitmap
+        return painter
     }
 
     @Composable
-    fun rememberImageBitmapFromUrl(url: String?): ImageBitmap? {
-        var imageBitmap by remember(url) { mutableStateOf<ImageBitmap?>(null) }
+    fun rememberImagePainterFromUrl(url: String?): Painter? {
+        var painter by remember(url) { mutableStateOf<Painter?>(null) }
+        val density = LocalDensity.current
 
         LaunchedEffect(url) {
             if (url == null || url.isBlank()) {
-                imageBitmap = null
+                painter = null
+                return@LaunchedEffect
+            }
+
+            // Если URL - это SVG контент
+            if (url.trim().startsWith("<svg", ignoreCase = true)) {
+                val key = hashKey(url)
+                if (inMemoryCache.containsKey(key)) {
+                    painter = inMemoryCache[key]
+                    return@LaunchedEffect
+                }
+
+                painter = withContext(Dispatchers.IO) {
+                    try {
+                        ByteArrayInputStream(url.toByteArray()).use { stream ->
+                            loadSvgPainter(stream, density).also {
+                                inMemoryCache[key] = it
+                            }
+                        }
+                    } catch (e: Exception) {
+                        println("ImageLoader: Error parsing SVG content: ${e.message}")
+                        null
+                    }
+                }
                 return@LaunchedEffect
             }
 
             if (inMemoryCache.containsKey(url)) {
-                imageBitmap = inMemoryCache[url]
+                painter = inMemoryCache[url]
                 return@LaunchedEffect
             }
 
-            imageBitmap = withContext(Dispatchers.IO) {
+            painter = withContext(Dispatchers.IO) {
                 val cacheFile = cacheManager.getImageCacheFile(url)
 
-                // Попытка загрузить из кэша
                 if (cacheFile.exists()) {
                     try {
-                        // Читаем файл в байты, чтобы избежать проблем с потоками
                         val bytes = cacheFile.readBytes()
                         ByteArrayInputStream(bytes).use { stream ->
-                            loadImageBitmap(stream).also { bitmap ->
-                                inMemoryCache[url] = bitmap
+                            val isSvg = isSvgContent(bytes)
+                            if (isSvg) {
+                                loadSvgPainter(stream, density)
+                            } else {
+                                BitmapPainter(loadImageBitmap(stream))
+                            }.also {
+                                inMemoryCache[url] = it
                             }
                         }
                     } catch (e: Exception) {
-                        println("ImageLoader: Error loading image from disk cache for URL: $url. Deleting file. Error: ${e.message}")
+                        println("ImageLoader: Error loading from disk cache: ${e.message}")
                         cacheFile.delete()
                         null
                     }
                 } else {
                     null
                 } ?: try {
-                    // Если в кэше нет или ошибка, качаем
                     val connection = URL(url).openConnection() as HttpURLConnection
                     connection.setRequestProperty("User-Agent", "MateriaKraft-Launcher")
                     connection.connect()
 
                     if (connection.responseCode == 200) {
                         connection.inputStream.use { input ->
-                            // Читаем весь поток в память
                             val buffer = ByteArrayOutputStream()
                             input.copyTo(buffer)
                             val bytes = buffer.toByteArray()
 
-                            // Создаем Bitmap из байтов
-                            val bitmap = ByteArrayInputStream(bytes).use { loadImageBitmap(it) }
-                            
-                            // Сохраняем в кэш на диске
                             try {
                                 cacheFile.parentFile?.mkdirs()
                                 cacheFile.writeBytes(bytes)
@@ -116,9 +163,17 @@ object ImageLoader {
                                 println("ImageLoader: Failed to save to cache: ${e.message}")
                             }
 
-                            // Сохраняем в память
-                            inMemoryCache[url] = bitmap
-                            bitmap
+                            val isSvg = isSvgContent(bytes) || url.endsWith(".svg", ignoreCase = true)
+
+                            ByteArrayInputStream(bytes).use { stream ->
+                                if (isSvg) {
+                                    loadSvgPainter(stream, density)
+                                } else {
+                                    BitmapPainter(loadImageBitmap(stream))
+                                }
+                            }.also {
+                                inMemoryCache[url] = it
+                            }
                         }
                     } else {
                         println("ImageLoader: Server returned ${connection.responseCode} for URL: $url")
@@ -130,6 +185,11 @@ object ImageLoader {
                 }
             }
         }
-        return imageBitmap
+        return painter
+    }
+
+    private fun isSvgContent(bytes: ByteArray): Boolean {
+        val prefix = String(bytes.take(100).toByteArray()).trim()
+        return prefix.startsWith("<svg", ignoreCase = true) || prefix.startsWith("<?xml", ignoreCase = true)
     }
 }

@@ -4,6 +4,7 @@ import androidx.compose.animation.*
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -148,8 +149,9 @@ private fun BoxScope.AppNavigation( // Changed to BoxScope receiver
                 .padding(start = 16.dp)
                 .height(300.dp)
                 .shadow(elevation = 8.dp, shape = RoundedCornerShape(16.dp))
-                .clip(RoundedCornerShape(16.dp)),
-            containerColor = MaterialTheme.colorScheme.surface
+                .clip(RoundedCornerShape(16.dp))
+                .border(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f), RoundedCornerShape(16.dp)),
+            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.75f)
         ) {
             Column(
                 modifier = Modifier.fillMaxHeight().padding(vertical = 16.dp),
@@ -193,8 +195,9 @@ private fun BoxScope.AppNavigation( // Changed to BoxScope receiver
                 .width(300.dp)
                 .height(64.dp)
                 .shadow(elevation = 8.dp, shape = RoundedCornerShape(16.dp))
-                .clip(RoundedCornerShape(16.dp)),
-            containerColor = MaterialTheme.colorScheme.surface
+                .clip(RoundedCornerShape(16.dp))
+                .border(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f), RoundedCornerShape(16.dp)),
+            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.75f)
         ) {
             NavigationBarItem(
                 selected = currentTab == AppTab.Home,

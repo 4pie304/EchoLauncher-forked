@@ -64,11 +64,11 @@ fun AvatarImage(account: Account?, modifier: Modifier = Modifier) {
         else -> "https://mc-heads.net/avatar/notch" // Дефолтный (или если аккаунт null)
     }
 
-    val imageBitmap = ImageLoader.rememberImageBitmapFromUrl(avatarUrl)
+    val painter = ImageLoader.rememberImagePainterFromUrl(avatarUrl)
 
-    if (imageBitmap != null) {
+    if (painter != null) {
         Image(
-            bitmap = imageBitmap,
+            painter = painter,
             contentDescription = "Avatar of ${account?.username ?: "Unknown"}",
             modifier = clippedModifier
         )
@@ -76,11 +76,11 @@ fun AvatarImage(account: Account?, modifier: Modifier = Modifier) {
         // Если не загрузилось, показываем плейсхолдер (Notch)
         // Можно использовать локальный ресурс или просто иконку, но по запросу - Notch
         val placeholderUrl = "https://mc-heads.net/avatar/notch"
-        val placeholderBitmap = ImageLoader.rememberImageBitmapFromUrl(placeholderUrl)
+        val placeholderPainter = ImageLoader.rememberImagePainterFromUrl(placeholderUrl)
         
-        if (placeholderBitmap != null) {
+        if (placeholderPainter != null) {
              Image(
-                bitmap = placeholderBitmap,
+                painter = placeholderPainter,
                 contentDescription = "Default Avatar",
                 modifier = clippedModifier
             )

@@ -19,7 +19,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
@@ -51,7 +51,7 @@ enum class FilterState {
 
 @Composable
 fun ModificationCard(hit: Hit, onClick: () -> Unit) {
-    val imageBitmap = ImageLoader.rememberImageBitmapFromUrl(hit.iconUrl)
+    val painter = ImageLoader.rememberImagePainterFromUrl(hit.iconUrl)
 
     Card(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
@@ -68,9 +68,9 @@ fun ModificationCard(hit: Hit, onClick: () -> Unit) {
                     .background(MaterialTheme.colorScheme.surfaceVariant),
                 contentAlignment = Alignment.Center
             ) {
-                imageBitmap?.let {
+                painter?.let {
                     Image(
-                        bitmap = it,
+                        painter = it,
                         contentDescription = "${hit.title} icon",
                         contentScale = ContentScale.Crop,
                         modifier = Modifier.fillMaxSize()
@@ -355,7 +355,13 @@ fun ModificationsScreen(
     val contentPaddingBottom by animateDpAsState(if (navPanelPosition == NavPanelPosition.Bottom) 80.dp else 0.dp)
 
     // LaunchedEffect для поиска
-    LaunchedEffect(searchQuery, selectedType, selectedVersions, selectedCategories, selectedLoaders) {
+    LaunchedEffect(
+        searchQuery,
+        selectedType,
+        selectedVersions.toList(),
+        selectedCategories.toMap(),
+        selectedLoaders.toMap()
+    ) {
         if (selectedProject != null) return@LaunchedEffect // Не ищем, если открыт проект
 
         isLoading = true
@@ -526,7 +532,7 @@ fun ModificationsScreen(
                                         shape = RoundedCornerShape(8.dp),
                                         tonalElevation = 2.dp
                                     ) {
-                                        val categoryIcon = ImageLoader.rememberImageBitmapFromUrl(category.icon)
+                                        val categoryIcon = ImageLoader.rememberImagePainterFromUrl(category.icon)
                                         Row(
                                             modifier = Modifier.fillMaxWidth().clickable {
                                                 val currentState = selectedCategories[category.name]
@@ -546,9 +552,10 @@ fun ModificationsScreen(
                                         ) {
                                             categoryIcon?.let {
                                                 Image(
-                                                    bitmap = it,
+                                                    painter = it,
                                                     contentDescription = category.pretty_name,
-                                                    modifier = Modifier.size(24.dp)
+                                                    modifier = Modifier.size(24.dp),
+                                                    colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.onSurface)
                                                 )
                                             } ?: Icon(
                                                 imageVector = Icons.Default.Category, // Placeholder icon
@@ -609,7 +616,7 @@ fun ModificationsScreen(
                                         shape = RoundedCornerShape(8.dp),
                                         tonalElevation = 2.dp
                                     ) {
-                                        val loaderIcon = ImageLoader.rememberImageBitmapFromUrl(loader.icon)
+                                        val loaderIcon = ImageLoader.rememberImagePainterFromUrl(loader.icon)
                                         Row(
                                             modifier = Modifier.fillMaxWidth().clickable {
                                                 val currentState = selectedLoaders[loader.name]
@@ -629,9 +636,10 @@ fun ModificationsScreen(
                                         ) {
                                             loaderIcon?.let {
                                                 Image(
-                                                    bitmap = it,
+                                                    painter = it,
                                                     contentDescription = loader.pretty_name,
-                                                    modifier = Modifier.size(24.dp)
+                                                    modifier = Modifier.size(24.dp),
+                                                    colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.onSurface)
                                                 )
                                             } ?: Icon(
                                                 imageVector = Icons.Default.Extension, // Placeholder icon

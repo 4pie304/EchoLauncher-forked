@@ -379,7 +379,7 @@ private fun BuildCard(
     val interactionSource = remember { MutableInteractionSource() }
     val isHovered by interactionSource.collectIsHoveredAsState()
 
-    val imageBitmap = ImageLoader.rememberImageBitmap(build.imagePath)
+    val painter = ImageLoader.rememberImagePainter(build.imagePath)
 
     Card(
         modifier = modifier
@@ -391,9 +391,9 @@ private fun BuildCard(
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
             Box(modifier = Modifier.fillMaxWidth().aspectRatio(16 / 9f)) {
-                if (imageBitmap != null) {
+                if (painter != null) {
                     Image(
-                        bitmap = imageBitmap,
+                        painter = painter,
                         contentDescription = null,
                         contentScale = ContentScale.Crop,
                         modifier = Modifier.fillMaxSize()
