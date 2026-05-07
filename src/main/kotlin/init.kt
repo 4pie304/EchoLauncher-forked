@@ -15,7 +15,6 @@ import androidx.compose.ui.window.rememberWindowState
 import funlauncher.*
 import funlauncher.auth.AccountManager
 import funlauncher.database.DatabaseManager
-import funlauncher.game.MLGDClient
 import funlauncher.game.VersionMetadataFetcher
 import funlauncher.managers.BuildManager
 import funlauncher.managers.CacheManager
@@ -120,20 +119,14 @@ fun main(args: Array<String>) {
         }
     }
 
-    runBlocking {
-        SwingUtilities.invokeLater { statusLabel.text = "Starting daemon..." }
-        runCatching {
-            MLGDClient.ensureDaemonRunning(globalPathManager)
-        }.onFailure { e ->
-            println("Could not start or connect to MLGD daemon. The application will continue without it.")
-            println(e.stackTraceToString())
-        }
-    }
-
     application {
         var currentScreen by remember { mutableStateOf<Screen>(Screen.Splash) }
         var appState by remember { mutableStateOf<AppState?>(null) }
         val scope = rememberCoroutineScope()
+        
+        // Состояние, отслеживающее, нужно ли показывать Мастер настройки. 
+        // Изменяется на false, когда настройка завершена.
+        var showFirstRunWizard by remember { mutableStateOf(isFirstRun) }
 
         val month = OffsetDateTime.now().month
         val isWinter = month == Month.DECEMBER || month == Month.JANUARY || month == Month.FEBRUARY
@@ -154,7 +147,7 @@ fun main(args: Array<String>) {
             if (currentScreen is Screen.Splash) {
                 isContentReady = false
                 scope.launch(Dispatchers.IO) {
-                    if (isFirstRun) {
+                    if (showFirstRunWizard) {
                         withContext(Dispatchers.Main) {
                             currentScreen = Screen.FirstRunWizard
                         }
@@ -185,7 +178,6 @@ fun main(args: Array<String>) {
                 Window(
                     onCloseRequest = {
                         scope.launch {
-                            MLGDClient.shutdown()
                             globalModrinthApi.close()
                             exitApplication()
                         }
@@ -203,7 +195,11 @@ fun main(args: Array<String>) {
                             onWizardComplete = { newSettings ->
                                 scope.launch(Dispatchers.IO) {
                                     globalSettingsManager.saveSettings(newSettings)
-                                    currentScreen = Screen.Splash
+                                    // Устанавливаем флаг в false, чтобы при следующем Splash перейти к MainApp
+                                    showFirstRunWizard = false
+                                    withContext(Dispatchers.Main) {
+                                        currentScreen = Screen.Splash
+                                    }
                                 }
                             }
                         )
@@ -232,7 +228,6 @@ fun main(args: Array<String>) {
                         onCloseRequest = {
                             scope.launch {
                                 viewModel.cancelScope()
-                                MLGDClient.shutdown()
                                 globalModrinthApi.close()
                                 exitApplication()
                             }

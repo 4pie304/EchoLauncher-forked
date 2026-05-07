@@ -9,7 +9,6 @@ import com.sun.management.OperatingSystemMXBean
 import funlauncher.*
 import funlauncher.auth.Account
 import funlauncher.auth.AccountManager
-import funlauncher.game.MLGDClient
 import funlauncher.game.MinecraftInstaller
 import funlauncher.game.VersionMetadataFetcher
 import funlauncher.managers.BuildManager
@@ -58,24 +57,7 @@ class AppViewModel(
     var runningBuild by mutableStateOf<MinecraftBuild?>(null)
 
     init {
-        pollDaemonStatus()
         synchronizeBuilds()
-    }
-
-    private fun pollDaemonStatus() {
-        viewModelScope.launch {
-            while (true) {
-                val newStatus = withContext(Dispatchers.IO) { MLGDClient.getStatus() }
-                if (newStatus != daemonStatus) {
-                    daemonStatus = newStatus
-                    if (newStatus == "STOPPED") {
-                        isLaunchingBuildId = null
-                        runningBuild = null // Reset running build when daemon stops
-                    }
-                }
-                delay(2000) // Poll every 2 seconds
-            }
-        }
     }
 
     private fun synchronizeBuilds() {
@@ -110,6 +92,10 @@ class AppViewModel(
             val finalJavaArgs = build.javaArgs ?: appState.settings.javaArgs
             val finalEnvVars = build.envVars ?: appState.settings.envVars
 
+            // When launching directly, we might want to set status manually
+            daemonStatus = "RUNNING"
+            runningBuild = build
+
             withContext(Dispatchers.IO) {
                 installer.launchGame(
                     account = account,
@@ -119,12 +105,12 @@ class AppViewModel(
                     envVars = finalEnvVars
                 )
             }
-            runningBuild = build // Set running build on successful launch
         }.onFailure { e ->
             e.printStackTrace()
             errorDialogMessage = "Ошибка запуска: ${e.message}"
             isLaunchingBuildId = null
             runningBuild = null
+            daemonStatus = "STOPPED"
         }
     }
 

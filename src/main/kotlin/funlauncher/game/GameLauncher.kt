@@ -21,6 +21,13 @@ import kotlin.io.path.exists
 import kotlin.io.path.name
 import kotlin.io.path.pathString
 
+data class LaunchPayload(
+    val command: List<String>,
+    val arguments: List<String>,
+    val environment: Map<String, String>,
+    val workDir: String
+)
+
 /**
  * Handles the final steps of launching the game: extracting natives and building the launch command.
  */
@@ -48,9 +55,6 @@ class GameLauncher(
         extractNatives()
         val commandList = buildLaunchCommand(account, javaPath, maxRamMb, customJavaArgs)
 
-        val command = commandList.first()
-        val arguments = commandList.drop(1)
-
         val envMap = if (envVars.isNotBlank()) {
             envVars.lines().mapNotNull { line ->
                 val parts = line.split("=", limit = 2)
@@ -61,9 +65,10 @@ class GameLauncher(
         }
 
         return LaunchPayload(
-            command = command,
-            arguments = arguments,
-            environment = envMap
+            command = commandList,
+            arguments = emptyList(), // Not used directly with ProcessBuilder
+            environment = envMap,
+            workDir = gameDir.toAbsolutePath().toString()
         )
     }
 

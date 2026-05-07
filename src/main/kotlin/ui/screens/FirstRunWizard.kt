@@ -8,6 +8,7 @@
 
 package ui.screens
 
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -56,86 +57,93 @@ fun FirstRunWizard(
         }
     }
 
-    Box(
-        modifier = Modifier.fillMaxSize().padding(32.dp),
-        contentAlignment = Alignment.Center
+    // Обернули весь экран в Surface, чтобы цвет фона менялся в соответствии с темой
+    Surface(
+        modifier = Modifier.fillMaxSize(),
+        color = MaterialTheme.colorScheme.background,
+        contentColor = MaterialTheme.colorScheme.onBackground
     ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+        Box(
+            modifier = Modifier.fillMaxSize().padding(32.dp),
+            contentAlignment = Alignment.Center
         ) {
-            Text("Добро пожаловать в Materia!", style = MaterialTheme.typography.headlineLarge)
-            Text("Давайте настроим лаунчер для первого запуска.", style = MaterialTheme.typography.bodyMedium)
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // --- Вход в аккаунт ---
-            OutlinedCard(modifier = Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("Аккаунт", style = MaterialTheme.typography.titleLarge)
-                    Spacer(modifier = Modifier.height(8.dp))
-                    when {
-                        isAuthenticating -> CircularProgressIndicator()
-                        authSuccess -> Text("Вы успешно вошли!", color = MaterialTheme.colorScheme.primary)
-                        else -> Button(onClick = ::handleLogin) {
-                            Text("Войти через Microsoft")
-                        }
-                    }
-                    authError?.let {
-                        Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
-                    }
-                }
-            }
-
-            // --- Настройки внешнего вида ---
-            OutlinedCard(modifier = Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(16.dp)) {
-                    Text("Внешний вид", style = MaterialTheme.typography.titleLarge)
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    Text("Тема", style = MaterialTheme.typography.titleMedium)
-                    val themeOptions = Theme.values().map { it.name }
-                    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                        themeOptions.forEachIndexed { index, label ->
-                            SegmentedButton(
-                                shape = SegmentedButtonDefaults.itemShape(index = index, count = themeOptions.size),
-                                onClick = { onThemeChange(Theme.values()[index]) },
-                                selected = initialTheme.name == label
-                            ) { Text(label) }
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    Text("Положение панели навигации", style = MaterialTheme.typography.titleMedium)
-                    val navPanelOptions = NavPanelPosition.values().map { it.name }
-                    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                        navPanelOptions.forEachIndexed { index, label ->
-                            SegmentedButton(
-                                shape = SegmentedButtonDefaults.itemShape(index = index, count = navPanelOptions.size),
-                                onClick = { navPanelPosition = NavPanelPosition.values()[index] },
-                                selected = navPanelPosition.name == label
-                            ) { Text(label) }
-                        }
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // --- Кнопка завершения ---
-            Button(
-                onClick = {
-                    val finalSettings = AppSettings(
-                        theme = initialTheme,
-                        navPanelPosition = navPanelPosition
-                        // Остальные настройки останутся по умолчанию
-                    )
-                    onWizardComplete(finalSettings)
-                },
-                modifier = Modifier.fillMaxWidth().height(48.dp)
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                Text("Готово", style = MaterialTheme.typography.titleMedium)
+                Text("Добро пожаловать в Materia!", style = MaterialTheme.typography.headlineLarge)
+                Text("Давайте настроим лаунчер для первого запуска.", style = MaterialTheme.typography.bodyMedium)
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // --- Вход в аккаунт ---
+                OutlinedCard(modifier = Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(16.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                        Text("Аккаунт", style = MaterialTheme.typography.titleLarge)
+                        Spacer(modifier = Modifier.height(8.dp))
+                        when {
+                            isAuthenticating -> CircularProgressIndicator()
+                            authSuccess -> Text("Вы успешно вошли!", color = MaterialTheme.colorScheme.primary)
+                            else -> Button(onClick = ::handleLogin) {
+                                Text("Войти через Microsoft")
+                            }
+                        }
+                        authError?.let {
+                            Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+                }
+
+                // --- Настройки внешнего вида ---
+                OutlinedCard(modifier = Modifier.fillMaxWidth()) {
+                    Column(Modifier.padding(16.dp)) {
+                        Text("Внешний вид", style = MaterialTheme.typography.titleLarge)
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        Text("Тема", style = MaterialTheme.typography.titleMedium)
+                        val themeOptions = Theme.values().map { it.name }
+                        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                            themeOptions.forEachIndexed { index, label ->
+                                SegmentedButton(
+                                    shape = SegmentedButtonDefaults.itemShape(index = index, count = themeOptions.size),
+                                    onClick = { onThemeChange(Theme.values()[index]) },
+                                    selected = initialTheme.name == label
+                                ) { Text(label) }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(16.dp))
+
+                        Text("Положение панели навигации", style = MaterialTheme.typography.titleMedium)
+                        val navPanelOptions = NavPanelPosition.values().map { it.name }
+                        SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                            navPanelOptions.forEachIndexed { index, label ->
+                                SegmentedButton(
+                                    shape = SegmentedButtonDefaults.itemShape(index = index, count = navPanelOptions.size),
+                                    onClick = { navPanelPosition = NavPanelPosition.values()[index] },
+                                    selected = navPanelPosition.name == label
+                                ) { Text(label) }
+                            }
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                // --- Кнопка завершения ---
+                Button(
+                    onClick = {
+                        val finalSettings = AppSettings(
+                            theme = initialTheme,
+                            navPanelPosition = navPanelPosition
+                            // Остальные настройки останутся по умолчанию
+                        )
+                        onWizardComplete(finalSettings)
+                    },
+                    modifier = Modifier.fillMaxWidth().height(48.dp)
+                ) {
+                    Text("Готово", style = MaterialTheme.typography.titleMedium)
+                }
             }
         }
     }

@@ -18,6 +18,7 @@ import io.ktor.client.plugins.*
 import java.net.ConnectException
 import java.net.UnknownHostException
 import kotlin.io.path.exists
+import java.io.File
 
 /**
  * Main installer class that coordinates the launch process.
@@ -51,15 +52,20 @@ class MinecraftInstaller(private val build: MinecraftBuild, private val buildMan
                 DownloadManager.updateTask(task.id, 0.1f + progress * 0.8f, status)
             }
 
-            // 3. Create Payload and Launch via Daemon
-            DownloadManager.updateTask(task.id, 0.95f, "Запуск через демона...")
+            // 3. Create Payload and Launch Directly
+            DownloadManager.updateTask(task.id, 0.95f, "Запуск игры...")
             val gameLauncher = GameLauncher(versionInfo, build, pathManager)
             val payload = gameLauncher.createLaunchPayload(account, javaPath, maxRamMb, javaArgs, envVars)
             
-            MLGDClient.launch(payload)
+            val pb = ProcessBuilder(payload.command)
+            pb.directory(File(payload.workDir))
+            payload.environment.forEach { (key, value) -> pb.environment()[key] = value }
+            
+            log("Launching: ${payload.command.joinToString(" ")}")
+            pb.start() // Запуск процесса в фоне напрямую
 
-            DownloadManager.updateTask(task.id, 1.0f, "Команда запуска отправлена")
-            log("Launch command sent to daemon successfully.")
+            DownloadManager.updateTask(task.id, 1.0f, "Игра запущена")
+            log("Game started successfully.")
 
         } catch (e: Exception) {
             handleLaunchException(e)

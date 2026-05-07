@@ -14,53 +14,23 @@ plugins {
 
 // --- Логика определения версии ---
 fun getVersionInfo(): Pair<String, String> {
-    val ci = System.getenv("CI") == "true"
-    val githubRef = System.getenv("GITHUB_REF_NAME") ?: ""
-    val githubRefType = System.getenv("GITHUB_REF_TYPE") ?: ""
-    val githubRunNumber = System.getenv("GITHUB_RUN_NUMBER") ?: "0"
-    val isAurBuild = System.getenv("BUILD_SOURCE") == "AUR"
-    val isTag = githubRefType == "tag"
-    val isMain = githubRef == "master"
-    val isDev = githubRef == "dev"
-
-    // Проверяем наличие приватного ключа разработчика
-    val devKeystore = File(System.getProperty("user.home"), ".ssh/keystore.jks")
-    val isDeveloperBuild = devKeystore.exists()
-
     val buildPropsFile = project.file("build.properties")
     val buildProps = Properties()
     if (buildPropsFile.exists()) {
         FileInputStream(buildPropsFile).use { buildProps.load(it) }
     }
+    
+    // Получаем текущий номер и увеличиваем на 1
     var buildNumber = buildProps.getProperty("buildNumber", "0").toInt()
-
-    val version: String
-    when {
-        isTag -> {
-            version = githubRef
-        }
-        isAurBuild -> {
-            version = "AUR" // Или можно использовать другую логику для версии из AUR
-        }
-        ci && isMain -> {
-            version = "Beta"
-            buildNumber = githubRunNumber.toInt()
-        }
-        ci && isDev -> {
-            version = "Canary"
-            buildNumber = githubRunNumber.toInt()
-        }
-        isDeveloperBuild -> {
-            version = "Develop Build"
-            buildNumber++
-            buildProps.setProperty("buildNumber", buildNumber.toString())
-            FileOutputStream(buildPropsFile).use { buildProps.store(it, "Auto-incremented by Gradle") }
-        }
-        else -> {
-            version = "Community Build"
-            // Номер сборки не инкрементируется для сборок сообщества
-        }
-    }
+    buildNumber++
+    
+    // Сохраняем обновленный номер
+    buildProps.setProperty("buildNumber", buildNumber.toString())
+    FileOutputStream(buildPropsFile).use { buildProps.store(it, "Auto-incremented by Gradle") }
+    
+    // Версию можно задать в build.properties (version=1.0.0), иначе будет "1.0.0" по умолчанию
+    val version = buildProps.getProperty("version", "1.0.0")
+    
     return Pair(version, buildNumber.toString())
 }
 
@@ -152,12 +122,7 @@ tasks.named<Copy>("processResources") {
         val props = Properties()
         props.setProperty("version", appVersion)
         props.setProperty("buildNumber", appBuildNumber)
-        props.setProperty("buildSource", when {
-            System.getenv("BUILD_SOURCE") == "AUR" -> "AUR"
-            System.getenv("CI") == "true" -> "GitHub"
-            File(System.getProperty("user.home"), ".ssh/keystore.jks").exists() -> "Local"
-            else -> "Community"
-        })
+        props.setProperty("buildSource", "Local")
 
         val wrapperProps = Properties()
         project.file("gradle/wrapper/gradle-wrapper.properties").inputStream().use { wrapperProps.load(it) }
