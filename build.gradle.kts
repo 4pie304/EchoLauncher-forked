@@ -4,6 +4,7 @@ import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.util.*
 import org.gradle.api.GradleException
+import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 
 plugins {
     kotlin("jvm") version "2.3.0"
@@ -95,10 +96,14 @@ compose.desktop {
             description = "Modern launcher for Minecraft"
             vendor = "Chokopieum Software"
             copyright = "© 2025 Chokopieum Software"
+            
+            // Встраиваем лицензию в установщик
+            licenseFile.set(project.file("LICENSE"))
+
             modules("ALL-MODULE-PATH")
 
             // Собираем только EXE для Windows со встроенной JDK
-            // targetFormats(TargetFormat.Exe) // Временно отключено из-за проблем с версией
+            targetFormats(TargetFormat.Exe, TargetFormat.Msi)
 
             windows {
                 menu = true
@@ -137,7 +142,7 @@ tasks.named<Copy>("processResources") {
 // build.gradle.kts
 
 compose.resources {
-    // Укажите тот пакет, который вы хотите использовать
+
     packageOfResClass = "org.chokopieum.software.materia_launcher.generated.resources"
 
     // Если нужно, чтобы ресурсы были видны в других модулях

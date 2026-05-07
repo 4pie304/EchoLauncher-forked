@@ -80,16 +80,27 @@ class FileDownloader(
     }
 
     private suspend fun downloadLibrary(lib: VersionInfo.Library) {
-        val mavenCentral = "https://repo1.maven.org/maven2/"
+        val defaultRepo = "https://libraries.minecraft.net/"
+        
         // Main artifact
         lib.downloads?.artifact?.let { artifact ->
             val path = globalLibrariesDir.resolve(artifact.path)
             downloadFile(artifact.url, path, "Lib: ${lib.name}")
         } ?: run {
+            // Если downloads == null (старые версии Minecraft)
             val artifactPath = getArtifactPath(lib.name)
             val path = globalLibrariesDir.resolve(artifactPath)
-            val url = (lib.url ?: mavenCentral) + artifactPath
-            downloadFile(url, path, "Lib: ${lib.name}")
+            val url = (lib.url ?: defaultRepo) + artifactPath
+            
+            try {
+                downloadFile(url, path, "Lib: ${lib.name}")
+            } catch (e: Exception) {
+                if (lib.natives != null) {
+                    log("Ignored missing main artifact for ${lib.name} because it has natives.")
+                } else {
+                    throw e
+                }
+            }
         }
 
         // Native artifact handling
@@ -101,15 +112,23 @@ class FileDownloader(
                 val classifier = "natives-linux-arm64"
                 val artifactPath = getArtifactPath("org.lwjgl:$artifactName:$lwjglVersion", classifier)
                 val path = globalLibrariesDir.resolve(artifactPath)
-                val url = (lib.url ?: mavenCentral) + artifactPath
+                val url = (lib.url ?: defaultRepo) + artifactPath
                 downloadFile(url, path, "Native (ARM): ${lib.name}")
             } else {
                 // Default native artifact logic for other OS/Arch
                 lib.natives.get(getOsName())?.let { classifierTemplate ->
                     val classifier = classifierTemplate.replace("\${arch}", getArch())
-                    lib.downloads?.classifiers?.get(classifier)?.let { nativeArtifact ->
-                        val path = globalLibrariesDir.resolve(nativeArtifact.path)
-                        downloadFile(nativeArtifact.url, path, "Native: ${lib.name}")
+                    if (lib.downloads != null) {
+                        lib.downloads.classifiers?.get(classifier)?.let { nativeArtifact ->
+                            val path = globalLibrariesDir.resolve(nativeArtifact.path)
+                            downloadFile(nativeArtifact.url, path, "Native: ${lib.name}")
+                        }
+                    } else {
+                        // Legacy handling for old versions (1.5.2, etc.)
+                        val artifactPath = getArtifactPath(lib.name, classifier)
+                        val path = globalLibrariesDir.resolve(artifactPath)
+                        val url = (lib.url ?: defaultRepo) + artifactPath
+                        downloadFile(url, path, "Native: ${lib.name}")
                     }
                 }
             }

@@ -9,6 +9,7 @@
 package ui.screens
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
@@ -381,15 +382,22 @@ private fun BuildCard(
 
     val painter = ImageLoader.rememberImagePainter(build.imagePath)
 
+    val borderColor by animateColorAsState(
+        targetValue = if (isHovered) MaterialTheme.colorScheme.primary else Color.Transparent,
+        animationSpec = tween(durationMillis = 200)
+    )
+
     Card(
         modifier = modifier
             .hoverable(interactionSource)
             .fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp, hoveredElevation = 8.dp),
+        shape = RoundedCornerShape(16.dp),
+        border = BorderStroke(2.dp, borderColor),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp, hoveredElevation = 6.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
+            // Image section
             Box(modifier = Modifier.fillMaxWidth().aspectRatio(16 / 9f)) {
                 if (painter != null) {
                     Image(
@@ -403,51 +411,17 @@ private fun BuildCard(
                         Brush.verticalGradient(listOf(Color(0xFF606060), Color(0xFF303030)))
                     ))
                 }
-            }
-
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(12.dp),
-                verticalArrangement = Arrangement.SpaceBetween
-            ) {
+                
+                // Content overlay on top of image at the top
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.Top
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(8.dp),
+                    horizontalArrangement = Arrangement.End
                 ) {
-                    Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
-                        val marqueeModifier = if (isHovered) {
-                            Modifier.basicMarquee(
-                                iterations = Int.MAX_VALUE,
-                                animationMode = MarqueeAnimationMode.Immediately,
-                                initialDelayMillis = 500,
-                                velocity = 30.dp
-                            )
-                        } else {
-                            Modifier
-                        }
-
-                        Text(
-                            text = build.name,
-                            style = MaterialTheme.typography.titleLarge,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = marqueeModifier
-                        )
-
-                        Spacer(Modifier.height(2.dp))
-                        Text(
-                            text = formatBuildVersion(build),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                    Box {
-                        IconButton(onClick = { showMenu = true }) {
-                            Icon(Icons.Default.MoreVert, "Дополнительно")
+                    Box(modifier = Modifier.background(Color.Black.copy(alpha = 0.5f), RoundedCornerShape(50))) {
+                        IconButton(onClick = { showMenu = true }, modifier = Modifier.size(32.dp)) {
+                            Icon(Icons.Default.MoreVert, "Дополнительно", tint = Color.White, modifier = Modifier.size(20.dp))
                         }
                         DropdownMenu(
                             expanded = showMenu,
@@ -470,6 +444,44 @@ private fun BuildCard(
                         }
                     }
                 }
+            }
+
+            // Info and actions section
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp)
+            ) {
+                val marqueeModifier = if (isHovered) {
+                    Modifier.basicMarquee(
+                        iterations = Int.MAX_VALUE,
+                        animationMode = MarqueeAnimationMode.Immediately,
+                        initialDelayMillis = 500,
+                        velocity = 30.dp
+                    )
+                } else {
+                    Modifier
+                }
+
+                Text(
+                    text = build.name,
+                    style = MaterialTheme.typography.titleMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = marqueeModifier
+                )
+
+                Spacer(Modifier.height(4.dp))
+                
+                Text(
+                    text = formatBuildVersion(build),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+
+                Spacer(Modifier.height(16.dp))
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -485,9 +497,15 @@ private fun BuildCard(
                     Spacer(Modifier.width(8.dp))
                     IconButton(
                         onClick = onOpenFolderClick,
-                        modifier = Modifier.size(36.dp)
+                        modifier = Modifier
+                            .size(40.dp)
+                            .background(MaterialTheme.colorScheme.secondaryContainer, RoundedCornerShape(8.dp))
                     ) {
-                        Icon(Icons.Default.Folder, "Открыть папку")
+                        Icon(
+                            Icons.Default.Folder, 
+                            contentDescription = "Открыть папку",
+                            tint = MaterialTheme.colorScheme.onSecondaryContainer
+                        )
                     }
                 }
             }
@@ -504,14 +522,19 @@ fun LaunchButton(
 ) {
     Button(
         onClick = onClick,
+        shape = RoundedCornerShape(8.dp),
         colors = ButtonDefaults.buttonColors(
             containerColor = when {
-                isPreparing -> Color.Gray
-                isRunning -> Color(0xFFD32F2F)
+                isPreparing -> MaterialTheme.colorScheme.surfaceVariant
+                isRunning -> MaterialTheme.colorScheme.error
                 else -> MaterialTheme.colorScheme.primary
             },
-            contentColor = Color.White,
-            disabledContainerColor = Color.Gray
+            contentColor = when {
+                isPreparing -> MaterialTheme.colorScheme.onSurfaceVariant
+                isRunning -> MaterialTheme.colorScheme.onError
+                else -> MaterialTheme.colorScheme.onPrimary
+            },
+            disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant
         ),
         modifier = modifier
             .height(40.dp),
@@ -521,22 +544,22 @@ fun LaunchButton(
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.Center) {
             if (isPreparing) {
                 CircularProgressIndicator(
-                    modifier = Modifier.size(20.dp),
+                    modifier = Modifier.size(16.dp),
                     strokeWidth = 2.dp,
-                    color = Color.White
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Spacer(Modifier.width(8.dp))
-                Text("ЗАПУСК...", style = MaterialTheme.typography.labelLarge)
+                Text("ЗАПУСК...", style = MaterialTheme.typography.labelMedium)
             } else {
                 Icon(
                     if (isRunning) Icons.Default.Stop else Icons.Default.PlayArrow,
                     contentDescription = null,
-                    modifier = Modifier.size(20.dp)
+                    modifier = Modifier.size(18.dp)
                 )
                 Spacer(Modifier.width(8.dp))
                 Text(
-                    if (isRunning) "СТОП" else "ИГРАТЬ",
-                    style = MaterialTheme.typography.labelLarge
+                    if (isRunning) "ОСТАНОВИТЬ" else "ИГРАТЬ",
+                    style = MaterialTheme.typography.labelMedium
                 )
             }
         }

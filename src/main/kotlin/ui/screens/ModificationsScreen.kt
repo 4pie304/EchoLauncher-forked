@@ -24,6 +24,8 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
 import com.mikepenz.markdown.m3.Markdown
+import com.mikepenz.markdown.model.ImageData
+import com.mikepenz.markdown.model.ImageTransformer
 import funlauncher.*
 import funlauncher.game.VersionMetadataFetcher
 import funlauncher.managers.BuildManager
@@ -104,6 +106,23 @@ fun ModificationDetails(
     projectVersions: List<Version>,
     onInstallClick: (Version) -> Unit
 ) {
+    val imageTransformer = remember {
+        object : ImageTransformer {
+            @Composable
+            override fun transform(link: String): ImageData? {
+                val painter = ImageLoader.rememberImagePainterFromUrl(link)
+                return painter?.let {
+                    ImageData(
+                        painter = it,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
+                    )
+                }
+            }
+        }
+    }
+
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(16.dp)
@@ -111,8 +130,8 @@ fun ModificationDetails(
         item {
             Markdown(
                 content = project.body,
-
-                )
+                imageTransformer = imageTransformer
+            )
         }
 
         item {

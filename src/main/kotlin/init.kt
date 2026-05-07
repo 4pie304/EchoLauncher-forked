@@ -7,6 +7,7 @@
  */
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.input.key.*
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.WindowPosition
@@ -22,6 +23,7 @@ import funlauncher.managers.JavaManager
 import funlauncher.managers.PathManager
 import funlauncher.net.JavaDownloader
 import funlauncher.net.ModrinthApi
+import funlauncher.utils.LogCollector
 import kotlinx.coroutines.*
 import org.chokopieum.software.materia_launcher.generated.resources.*
 import org.jetbrains.compose.resources.ExperimentalResourceApi
@@ -57,6 +59,9 @@ private lateinit var globalVersionMetadataFetcher: VersionMetadataFetcher
 
 @OptIn(ExperimentalResourceApi::class)
 fun main(args: Array<String>) {
+    // Инициализируем сборщик логов при запуске приложения
+    LogCollector.init()
+
     val isUiTest = args.contains("--uitest")
 
     if (isUiTest) {
@@ -185,7 +190,15 @@ fun main(args: Array<String>) {
                     title = "Materia - Мастер настройки",
                     visible = isContentReady,
                     icon = icon,
-                    state = rememberWindowState(width = 600.dp, height = 700.dp, position = WindowPosition(Alignment.Center))
+                    state = rememberWindowState(width = 600.dp, height = 700.dp, position = WindowPosition(Alignment.Center)),
+                    onKeyEvent = {
+                        if (it.isCtrlPressed && it.key == Key.Grave && it.type == KeyEventType.KeyDown) {
+                            LogCollector.saveLogsToDesktop()
+                            true
+                        } else {
+                            false
+                        }
+                    }
                 ) {
                     AnimatedAppTheme(wizardTheme) {
                         FirstRunWizard(
@@ -235,7 +248,15 @@ fun main(args: Array<String>) {
                         title = stringResource(Res.string.app_name),
                         visible = isContentReady,
                         icon = icon,
-                        state = rememberWindowState(width = 1024.dp, height = 768.dp)
+                        state = rememberWindowState(width = 1024.dp, height = 768.dp),
+                        onKeyEvent = {
+                            if (it.isCtrlPressed && it.key == Key.Grave && it.type == KeyEventType.KeyDown) {
+                                LogCollector.saveLogsToDesktop()
+                                true
+                            } else {
+                                false
+                            }
+                        }
                     ) {
                         App(
                             viewModel = viewModel,
