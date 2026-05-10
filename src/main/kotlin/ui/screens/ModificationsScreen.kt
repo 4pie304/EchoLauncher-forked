@@ -8,7 +8,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -21,11 +20,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.dp
-import com.mikepenz.markdown.m3.Markdown
-import com.mikepenz.markdown.model.ImageData
-import com.mikepenz.markdown.model.ImageTransformer
 import funlauncher.*
 import funlauncher.game.VersionMetadataFetcher
 import funlauncher.managers.BuildManager
@@ -42,149 +37,15 @@ import org.jetbrains.compose.resources.stringResource
 import org.chokopieum.software.materia_launcher.generated.resources.*
 import ui.widgets.ImageLoader
 import java.io.File
-
-// Добавлены импорты для прокрутки
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import ui.screens.modifications.ModificationCard
+import ui.screens.modifications.ModificationDetails
+import ui.screens.modifications.InstallModificationDialog
 
 enum class FilterState {
     INCLUDED, EXCLUDED
 }
-
-@Composable
-fun ModificationCard(hit: Hit, onClick: () -> Unit) {
-    val painter = ImageLoader.rememberImagePainterFromUrl(hit.iconUrl)
-
-    Card(
-        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
-        shape = RoundedCornerShape(12.dp)
-    ) {
-        Row(
-            modifier = Modifier.padding(12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(64.dp)
-                    .clip(CircleShape)
-                    .background(MaterialTheme.colorScheme.surfaceVariant),
-                contentAlignment = Alignment.Center
-            ) {
-                painter?.let {
-                    Image(
-                        painter = it,
-                        contentDescription = "${hit.title} icon",
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize()
-                    )
-                } ?: Icon(
-                    imageVector = Icons.Default.Build,
-                    contentDescription = "Placeholder icon",
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-
-            Spacer(Modifier.width(16.dp))
-
-            Column(modifier = Modifier.weight(1f)) {
-                Text(hit.title, style = MaterialTheme.typography.titleMedium)
-                Text("by ${hit.author}", style = MaterialTheme.typography.bodySmall)
-                Spacer(Modifier.height(4.dp))
-                Text(
-                    hit.description,
-                    style = MaterialTheme.typography.bodyMedium,
-                    maxLines = 2
-                )
-            }
-        }
-    }
-}
-
-@Composable
-fun ModificationDetails(
-    project: Project,
-    projectVersions: List<Version>,
-    onInstallClick: (Version) -> Unit
-) {
-    val imageTransformer = remember {
-        object : ImageTransformer {
-            @Composable
-            override fun transform(link: String): ImageData? {
-                val painter = ImageLoader.rememberImagePainterFromUrl(link)
-                return painter?.let {
-                    ImageData(
-                        painter = it,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(8.dp))
-                    )
-                }
-            }
-        }
-    }
-
-    LazyColumn(
-        modifier = Modifier.fillMaxSize().padding(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        item {
-            Markdown(
-                content = project.body,
-                imageTransformer = imageTransformer
-            )
-        }
-
-        item {
-            Text(stringResource(Res.string.versions), style = MaterialTheme.typography.titleLarge)
-        }
-
-        items(projectVersions) { version ->
-            Card(modifier = Modifier.fillMaxWidth()) {
-                Row(
-                    modifier = Modifier.padding(12.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(version.name, style = MaterialTheme.typography.titleMedium)
-                        Text("Type: ${version.versionType}", style = MaterialTheme.typography.bodySmall)
-                        Text("MC: ${version.gameVersions.joinToString()}", style = MaterialTheme.typography.bodySmall)
-                    }
-                    Button(onClick = { onInstallClick(version) }) {
-                        Text(stringResource(Res.string.install))
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun InstallModificationDialog(
-    compatibleBuilds: List<MinecraftBuild>,
-    onDismiss: () -> Unit,
-    onInstall: (MinecraftBuild) -> Unit
-) {
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(Res.string.select_a_build)) },
-        text = {
-            if (compatibleBuilds.isEmpty()) {
-                Text(stringResource(Res.string.no_compatible_builds))
-            } else {
-                LazyColumn {
-                    items(compatibleBuilds) { build ->
-                        Text(build.name, modifier = Modifier.clickable { onInstall(build) }.fillMaxWidth().padding(12.dp))
-                    }
-                }
-            }
-        },
-        confirmButton = {
-            Button(onClick = onDismiss) { Text(stringResource(Res.string.cancel)) }
-        }
-    )
-}
-
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalAnimationApi::class)
 @Composable
@@ -206,6 +67,13 @@ fun ModificationsScreen(
     var searchQuery by remember { mutableStateOf("") }
     var searchResult by remember { mutableStateOf<SearchResult?>(null) }
     var isLoading by remember { mutableStateOf(false) }
+
+    // Pagination states
+    var currentPage by remember { mutableStateOf(0) }
+    val pageSize = 20
+    var isLoadingMore by remember { mutableStateOf(false) }
+    var hasMoreResults by remember { mutableStateOf(true) }
+
 
     var selectedProject by remember { mutableStateOf<Project?>(null) }
     var projectVersions by remember { mutableStateOf<List<Version>>(emptyList()) }
@@ -373,21 +241,9 @@ fun ModificationsScreen(
     val contentPaddingStart by animateDpAsState(if (navPanelPosition == NavPanelPosition.Left) 96.dp else 0.dp)
     val contentPaddingBottom by animateDpAsState(if (navPanelPosition == NavPanelPosition.Bottom) 80.dp else 0.dp)
 
-    // LaunchedEffect для поиска
-    LaunchedEffect(
-        searchQuery,
-        selectedType,
-        selectedVersions.toList(),
-        selectedCategories.toMap(),
-        selectedLoaders.toMap()
-    ) {
-        if (selectedProject != null) return@LaunchedEffect // Не ищем, если открыт проект
-
-        isLoading = true
-        searchResult = null // Очищаем предыдущие результаты
-
+    fun buildFacetsList(): MutableList<List<String>> {
         val facetsList = mutableListOf<List<String>>()
-
+        
         // Project Type
         val actualProjectType = if (selectedType == ModificationType.DATAPACKS) {
             ModificationType.MODS.projectType // Datapacks используют project_type 'mod' для поиска
@@ -412,20 +268,73 @@ fun ModificationsScreen(
         if (includedLoaders.isNotEmpty()) {
             facetsList.add(includedLoaders.map { "loaders:$it" })
         }
+        
+        return facetsList
+    }
 
+
+    // LaunchedEffect для первоначального поиска (при смене параметров или запроса)
+    LaunchedEffect(
+        searchQuery,
+        selectedType,
+        selectedVersions.toList(),
+        selectedCategories.toMap(),
+        selectedLoaders.toMap()
+    ) {
+        if (selectedProject != null) return@LaunchedEffect // Не ищем, если открыт проект
+
+        isLoading = true
+        searchResult = null // Очищаем предыдущие результаты
+        currentPage = 0 // Сбрасываем страницу
+        hasMoreResults = true
+        
+        val facetsList = buildFacetsList()
         val facetsJson = Json.encodeToString(facetsList)
 
         try {
             val result = withContext(Dispatchers.IO) {
-                modrinthApi.search(query = searchQuery, facets = facetsJson)
+                modrinthApi.search(query = searchQuery, facets = facetsJson, offset = currentPage * pageSize, limit = pageSize)
             }
             searchResult = result
+            hasMoreResults = result.hits.size == pageSize
         } catch (e: Exception) {
             snackbarHostState.showSnackbar(strErrorSearch.format(e.message ?: unknownError))
         } finally {
             isLoading = false
         }
     }
+    
+    // Функция для подгрузки следующей страницы
+    fun loadNextPage() {
+        if (isLoadingMore || !hasMoreResults || isLoading) return
+        
+        scope.launch {
+            isLoadingMore = true
+            currentPage++
+            
+            val facetsList = buildFacetsList()
+            val facetsJson = Json.encodeToString(facetsList)
+
+            try {
+                val result = withContext(Dispatchers.IO) {
+                    modrinthApi.search(query = searchQuery, facets = facetsJson, offset = currentPage * pageSize, limit = pageSize)
+                }
+                
+                // Объединяем старые результаты с новыми
+                searchResult = searchResult?.copy(
+                    hits = searchResult!!.hits + result.hits
+                ) ?: result
+                
+                hasMoreResults = result.hits.size == pageSize
+            } catch (e: Exception) {
+                snackbarHostState.showSnackbar(strErrorSearch.format(e.message ?: unknownError))
+                currentPage-- // Откатываем страницу при ошибке
+            } finally {
+                isLoadingMore = false
+            }
+        }
+    }
+
 
     Scaffold(
         topBar = {
@@ -738,6 +647,26 @@ fun ModificationsScreen(
                                                 } finally {
                                                     withContext(Dispatchers.Main) {
                                                         isLoadingProject = false
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                    
+                                    // Кнопка "Загрузить еще" или индикатор загрузки
+                                    if (hasMoreResults) {
+                                        item {
+                                            Box(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(16.dp),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                if (isLoadingMore) {
+                                                    CircularProgressIndicator()
+                                                } else {
+                                                    Button(onClick = { loadNextPage() }) {
+                                                        Text("Загрузить еще")
                                                     }
                                                 }
                                             }

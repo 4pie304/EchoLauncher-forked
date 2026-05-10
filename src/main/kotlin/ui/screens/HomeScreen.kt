@@ -28,6 +28,7 @@ import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -61,52 +62,147 @@ fun HomeScreen(
     viewModel: HomeViewModel
 ) {
     val filteredBuilds by rememberUpdatedState(viewModel.filteredBuilds)
+    var expandedBuild by remember { mutableStateOf<MinecraftBuild?>(null) }
 
-    Scaffold(
-        topBar = {
-            HomeTopAppBar(
-                searchQuery = viewModel.searchQuery,
-                onSearchQueryChange = viewModel::onSearchQueryChanged,
-                onAddBuildClick = viewModel::onAddBuildClick,
-                onOpenAccountManager = viewModel::onOpenAccountManager,
-                viewModel = viewModel
-            )
-        },
-        containerColor = Color.Transparent
-    ) { paddingValues ->
-        if (viewModel.builds.isEmpty()) {
-            EmptyState(Modifier.fillMaxSize().padding(paddingValues))
-        } else {
-            LazyVerticalGrid(
-                columns = GridCells.Adaptive(minSize = 220.dp),
-                modifier = Modifier.fillMaxSize().padding(paddingValues),
-                contentPadding = PaddingValues(16.dp),
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
+    Box(Modifier.fillMaxSize()) {
+        Scaffold(
+            topBar = {
+                AnimatedVisibility(visible = expandedBuild == null) {
+                    HomeTopAppBar(
+                        searchQuery = viewModel.searchQuery,
+                        onSearchQueryChange = viewModel::onSearchQueryChanged,
+                        onAddBuildClick = viewModel::onAddBuildClick,
+                        onOpenAccountManager = viewModel::onOpenAccountManager,
+                        viewModel = viewModel
+                    )
+                }
+            },
+            containerColor = Color.Transparent
+        ) { paddingValues ->
+            AnimatedVisibility(
+                visible = expandedBuild == null,
+                modifier = Modifier.padding(paddingValues),
+                exit = fadeOut(animationSpec = tween(durationMillis = 200))
             ) {
-                itemsIndexed(filteredBuilds, key = { _, build -> build.name }) { index, build ->
-                    AnimatedVisibility(
-                        visible = build.name !in viewModel.buildsPendingDeletion,
-                        exit = shrinkVertically(animationSpec = tween(durationMillis = 300)) + fadeOut(animationSpec = tween(durationMillis = 250))
+                if (viewModel.builds.isEmpty()) {
+                    EmptyState(Modifier.fillMaxSize())
+                } else {
+                    LazyVerticalGrid(
+                        columns = GridCells.Adaptive(minSize = 220.dp),
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(16.dp),
+                        horizontalArrangement = Arrangement.spacedBy(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
                     ) {
-                        AnimatedBuildCard(
-                            build = build,
-                            isRunning = build == viewModel.runningBuild,
-                            isPreparing = build.name == viewModel.isLaunchingBuildId,
-                            onLaunchClick = { viewModel.onLaunchClick(build) },
-                            onOpenFolderClick = { viewModel.onOpenFolderClick(build) },
-                            onDeleteClick = { viewModel.onDeleteBuildClick(build) },
-                            onSettingsClick = { viewModel.onSettingsBuildClick(build) },
-                            index = index,
-                            modifier = Modifier.animateItem(
-                                placementSpec = spring(
-                                    dampingRatio = Spring.DampingRatioLowBouncy,
-                                    stiffness = Spring.StiffnessMedium
+                        itemsIndexed(filteredBuilds, key = { _, build -> build.name }) { index, build ->
+                            AnimatedVisibility(
+                                visible = build.name !in viewModel.buildsPendingDeletion,
+                                exit = shrinkVertically(animationSpec = tween(durationMillis = 300)) + fadeOut(
+                                    animationSpec = tween(durationMillis = 250)
                                 )
-                            )
-                        )
+                            ) {
+                                AnimatedBuildCard(
+                                    build = build,
+                                    isRunning = build == viewModel.runningBuild,
+                                    isPreparing = build.name == viewModel.isLaunchingBuildId,
+                                    onLaunchClick = { viewModel.onLaunchClick(build) },
+                                    onOpenFolderClick = { viewModel.onOpenFolderClick(build) },
+                                    onDeleteClick = { viewModel.onDeleteBuildClick(build) },
+                                    onCardClick = { expandedBuild = build },
+                                    index = index,
+                                    modifier = Modifier.animateItem(
+                                        placementSpec = spring(
+                                            dampingRatio = Spring.DampingRatioLowBouncy,
+                                            stiffness = Spring.StiffnessMedium
+                                        )
+                                    )
+                                )
+                            }
+                        }
                     }
                 }
+            }
+        }
+
+        AnimatedVisibility(
+            visible = expandedBuild != null,
+            enter = fadeIn(animationSpec = tween(300)),
+            exit = fadeOut(animationSpec = tween(300))
+        ) {
+            expandedBuild?.let { build ->
+                ExpandedBuildScreenWrapper(
+                    build = build,
+                    viewModel = viewModel,
+                    onDismiss = { expandedBuild = null }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun ExpandedBuildScreenWrapper(
+    build: MinecraftBuild,
+    viewModel: HomeViewModel,
+    onDismiss: () -> Unit
+) {
+    val painter = ImageLoader.rememberImagePainter(build.imagePath)
+
+    Box(modifier = Modifier.fillMaxSize()) {
+        // Фоновое изображение сборки
+        if (painter != null) {
+            Image(
+                painter = painter,
+                contentDescription = null,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop
+            )
+        } else {
+            Box(
+                Modifier.fillMaxSize().background(
+                    Brush.verticalGradient(listOf(Color(0xFF606060), Color(0xFF303030)))
+                )
+            )
+        }
+
+        // Полупрозрачный слой для читаемости настроек
+        Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surface.copy(alpha = 0.85f)))
+
+        Column(Modifier.fillMaxSize()) {
+            // Кнопка Назад и заголовок (TopBar)
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(onClick = onDismiss) {
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Назад")
+                }
+                Spacer(Modifier.width(16.dp))
+                Text(build.name, style = MaterialTheme.typography.headlineMedium)
+            }
+
+            // Встраиваем экран настроек (без его собственного Scaffold/TopBar, только контент)
+            Box(modifier = Modifier.fillMaxSize().weight(1f)) {
+                BuildSettingsScreenWithoutDialog(
+                    build = build,
+                    globalSettings = viewModel.globalSettings,
+                    pathManager = viewModel.pathManager,
+                    onDismiss = onDismiss,
+                    onSave = { newName, newVersion, newType, newImagePath, javaPath, maxRam, javaArgs, envVars ->
+                        viewModel.onSaveBuildSettings(
+                            oldBuildName = build.name,
+                            newName = newName,
+                            newVersion = newVersion,
+                            newType = newType,
+                            newImagePath = newImagePath,
+                            javaPath = javaPath,
+                            maxRam = maxRam,
+                            javaArgs = javaArgs,
+                            envVars = envVars
+                        )
+                        onDismiss()
+                    }
+                )
             }
         }
     }
@@ -124,27 +220,27 @@ private fun HomeTopAppBar(
     TopAppBar(
         title = {
             Row(
-                modifier = Modifier.fillMaxWidth().padding(start = 16.dp),
+                modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.Start
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                // Аватар слева
-                IconButton(onClick = onOpenAccountManager) {
-                    AvatarImage(
-                        account = viewModel.currentAccount,
-                        modifier = Modifier.size(40.dp).clip(SquircleShape)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    // Аватар слева
+                    IconButton(onClick = onOpenAccountManager) {
+                        AvatarImage(
+                            account = viewModel.currentAccount,
+                            modifier = Modifier.size(40.dp).clip(SquircleShape)
+                        )
+                    }
+
+                    Spacer(Modifier.width(16.dp))
+
+                    // Поисковая строка
+                    ExpandableSearchBar(
+                        searchQuery = searchQuery,
+                        onSearchQueryChange = onSearchQueryChange
                     )
                 }
-
-                Spacer(Modifier.width(16.dp))
-
-                // Поисковая строка
-                ExpandableSearchBar(
-                    searchQuery = searchQuery,
-                    onSearchQueryChange = onSearchQueryChange
-                )
-
-                Spacer(Modifier.width(16.dp))
 
                 FilledTonalButton(onClick = onAddBuildClick) {
                     Text("Создать")
@@ -317,7 +413,7 @@ private fun AnimatedBuildCard(
     onLaunchClick: () -> Unit,
     onOpenFolderClick: () -> Unit,
     onDeleteClick: () -> Unit,
-    onSettingsClick: () -> Unit,
+    onCardClick: () -> Unit,
     index: Int,
     modifier: Modifier = Modifier
 ) {
@@ -325,10 +421,10 @@ private fun AnimatedBuildCard(
     val animatedAlpha = remember { Animatable(0f) }
 
     LaunchedEffect(key1 = build.name) {
-        val delay = (index * 75L).coerceAtMost(375L)
+        val animationDelay = (index * 75L).coerceAtMost(375L)
 
         launch {
-            delay(delay)
+            delay(animationDelay)
             animatedScale.animateTo(
                 targetValue = 1f,
                 animationSpec = spring(
@@ -339,7 +435,7 @@ private fun AnimatedBuildCard(
         }
 
         launch {
-            delay(delay)
+            delay(animationDelay)
             animatedAlpha.animateTo(
                 targetValue = 1f,
                 animationSpec = tween(durationMillis = 250)
@@ -354,7 +450,7 @@ private fun AnimatedBuildCard(
         onLaunchClick = onLaunchClick,
         onOpenFolderClick = onOpenFolderClick,
         onDeleteClick = onDeleteClick,
-        onSettingsClick = onSettingsClick,
+        onCardClick = onCardClick,
         modifier = modifier
             .graphicsLayer {
                 scaleX = animatedScale.value
@@ -373,7 +469,7 @@ private fun BuildCard(
     onLaunchClick: () -> Unit,
     onOpenFolderClick: () -> Unit,
     onDeleteClick: () -> Unit,
-    onSettingsClick: () -> Unit,
+    onCardClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     var showMenu by remember { mutableStateOf(false) }
@@ -390,10 +486,11 @@ private fun BuildCard(
     Card(
         modifier = modifier
             .hoverable(interactionSource)
-            .fillMaxWidth(),
+            .fillMaxWidth()
+            .clickable(onClick = onCardClick),
         shape = RoundedCornerShape(16.dp),
         border = BorderStroke(2.dp, borderColor),
-        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp, hoveredElevation = 6.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp, hoveredElevation = 12.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
@@ -427,13 +524,6 @@ private fun BuildCard(
                             expanded = showMenu,
                             onDismissRequest = { showMenu = false }
                         ) {
-                            DropdownMenuItem(
-                                text = { Text("Настройки") },
-                                onClick = {
-                                    onSettingsClick()
-                                    showMenu = false
-                                }
-                            )
                             DropdownMenuItem(
                                 text = { Text("Удалить") },
                                 onClick = {

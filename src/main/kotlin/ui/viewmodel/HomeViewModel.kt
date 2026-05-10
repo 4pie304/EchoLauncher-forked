@@ -7,9 +7,13 @@ import androidx.compose.runtime.setValue
 import funlauncher.MinecraftBuild
 import funlauncher.auth.Account
 import funlauncher.openFolder // Keep this import as it's used in onOpenFolderClick
+import funlauncher.managers.PathManager
+import funlauncher.AppSettings
 
 class HomeViewModel(
-    private val appViewModel: AppViewModel
+    private val appViewModel: AppViewModel,
+    val pathManager: PathManager,
+    val globalSettings: AppSettings
 ) {
     var searchQuery by mutableStateOf("")
         private set
@@ -56,5 +60,14 @@ class HomeViewModel(
 
     fun onOpenAccountManager() {
         appViewModel.showAccountScreen = true
+    }
+
+    fun onSaveBuildSettings(oldBuildName: String, newName: String, newVersion: String, newType: funlauncher.BuildType, newImagePath: String?, javaPath: String?, maxRam: Int?, javaArgs: String?, envVars: String?) {
+        // We need to set the build to edit in AppViewModel first so it knows what to update
+        val buildToUpdate = appViewModel.buildList.find { it.name == oldBuildName }
+        if (buildToUpdate != null) {
+            appViewModel.showBuildSettingsScreen = buildToUpdate
+            appViewModel.onSaveBuildSettings(newName, newVersion, newType.name, newImagePath, javaPath, maxRam, javaArgs, envVars)
+        }
     }
 }

@@ -53,7 +53,7 @@ fun App(
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
 
-    val homeViewModel = remember { HomeViewModel(viewModel) }
+    val homeViewModel = remember { HomeViewModel(viewModel, pathManager, appState.settings) }
 
     // Эффект для отображения "галочки" после завершения всех загрузок.
     LaunchedEffect(DownloadManager.tasks.size) {

@@ -59,6 +59,7 @@ import kotlin.io.path.ExperimentalPathApi
 import kotlin.io.path.deleteRecursively
 import kotlin.math.roundToInt
 import androidx.compose.ui.graphics.toComposeImageBitmap
+import androidx.compose.ui.graphics.Color // Added import
 
 private enum class SettingsTab {
     Main, Mods, Worlds, ResourcePacks
@@ -168,6 +169,36 @@ fun BuildSettingsScreen(
     onSave: (newName: String, newVersion: String, newType: BuildType, newImagePath: String?, javaPath: String?, maxRam: Int?, javaArgs: String?, envVars: String?) -> Unit,
     pathManager: PathManager
 ) {
+    val visibleState = remember { MutableTransitionState(false).apply { targetState = true } }
+    val dismiss = { visibleState.targetState = false }
+    LaunchedEffect(visibleState.currentState) { if (!visibleState.currentState && !visibleState.targetState) onDismiss() }
+
+    Dialog(onDismissRequest = dismiss) {
+        AnimatedVisibility(
+            visibleState = visibleState,
+            enter = fadeIn(tween(250)) + slideInVertically(tween(250)) { it / 8 },
+            exit = fadeOut(tween(250)) + slideOutVertically(tween(250)) { it / 8 }
+        ) {
+            BuildSettingsScreenWithoutDialog(
+                build = build,
+                globalSettings = globalSettings,
+                pathManager = pathManager,
+                onDismiss = dismiss,
+                onSave = onSave
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
+@Composable
+fun BuildSettingsScreenWithoutDialog(
+    build: MinecraftBuild,
+    globalSettings: AppSettings,
+    pathManager: PathManager,
+    onDismiss: () -> Unit,
+    onSave: (newName: String, newVersion: String, newType: BuildType, newImagePath: String?, javaPath: String?, maxRam: Int?, javaArgs: String?, envVars: String?) -> Unit
+) {
     var selectedTab by remember { mutableStateOf(SettingsTab.Main) }
 
     // --- State for Main Tab ---
@@ -185,92 +216,82 @@ fun BuildSettingsScreen(
     var javaArgs by remember { mutableStateOf(build.javaArgs ?: globalSettings.javaArgs) }
     var envVars by remember { mutableStateOf(build.envVars ?: globalSettings.envVars) }
 
-    val visibleState = remember { MutableTransitionState(false).apply { targetState = true } }
-    val dismiss = { visibleState.targetState = false }
-    LaunchedEffect(visibleState.currentState) { if (!visibleState.currentState && !visibleState.targetState) onDismiss() }
-
-    Dialog(onDismissRequest = dismiss) {
-        AnimatedVisibility(
-            visibleState = visibleState,
-            enter = fadeIn(tween(250)) + slideInVertically(tween(250)) { it / 8 },
-            exit = fadeOut(tween(250)) + slideOutVertically(tween(250)) { it / 8 }
-        ) {
-            Scaffold(
-                topBar = { TopAppBar(title = { Text("Настройки: ${build.name}") }) },
-                bottomBar = {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        val showOpenFolderButton = selectedTab in listOf(SettingsTab.Mods, SettingsTab.Worlds, SettingsTab.ResourcePacks)
-                        Box(modifier = Modifier.size(48.dp)) {
-                            if (showOpenFolderButton) {
-                                TooltipArea(tooltip = { Surface(shape = RoundedCornerShape(4.dp), shadowElevation = 4.dp) { Text("Открыть папку", modifier = Modifier.padding(8.dp)) } }) {
-                                    IconButton(onClick = {
-                                        val folderToOpen = when (selectedTab) {
-                                            SettingsTab.Mods -> "mods"
-                                            SettingsTab.Worlds -> "saves"
-                                            SettingsTab.ResourcePacks -> "resourcepacks"
-                                            else -> ""
-                                        }
-                                        if (folderToOpen.isNotEmpty()) {
-                                            File(build.installPath, folderToOpen).apply { if (!exists()) mkdirs() }.let { openFolder(it.absolutePath) }
-                                        }
-                                    }) { Icon(Icons.Default.Folder, contentDescription = "Открыть папку") }
+    Scaffold(
+        containerColor = Color.Transparent,
+        bottomBar = {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                val showOpenFolderButton = selectedTab in listOf(SettingsTab.Mods, SettingsTab.Worlds, SettingsTab.ResourcePacks)
+                Box(modifier = Modifier.size(48.dp)) {
+                    if (showOpenFolderButton) {
+                        TooltipArea(tooltip = { Surface(shape = RoundedCornerShape(4.dp), shadowElevation = 4.dp) { Text("Открыть папку", modifier = Modifier.padding(8.dp)) } }) {
+                            IconButton(onClick = {
+                                val folderToOpen = when (selectedTab) {
+                                    SettingsTab.Mods -> "mods"
+                                    SettingsTab.Worlds -> "saves"
+                                    SettingsTab.ResourcePacks -> "resourcepacks"
+                                    else -> ""
                                 }
-                            }
-                        }
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            Button(onClick = dismiss) { Text("Отмена") }
-                            Button(onClick = {
-                                val finalVersion = when (selectedBuildType) {
-                                    BuildType.FABRIC -> "$selectedMcVersion-fabric-$selectedLoaderVersion"
-                                    BuildType.FORGE -> "$selectedMcVersion-forge-$selectedLoaderVersion"
-                                    BuildType.QUILT -> "$selectedMcVersion-quilt-$selectedLoaderVersion"
-                                    BuildType.NEOFORGE -> "$selectedMcVersion-neoforge-$selectedLoaderVersion"
-                                    else -> selectedMcVersion
+                                if (folderToOpen.isNotEmpty()) {
+                                    File(build.installPath, folderToOpen).apply { if (!exists()) mkdirs() }.let { openFolder(it.absolutePath) }
                                 }
-                                onSave(buildName, finalVersion, selectedBuildType, imagePath, selectedJavaPath, if (useGlobalRam) null else maxRam, if (useGlobalJavaArgs) null else javaArgs, if (useGlobalEnvVars) null else envVars)
-                                dismiss()
-                            }) { Text("Сохранить") }
+                            }) { Icon(Icons.Default.Folder, contentDescription = "Открыть папку") }
                         }
                     }
                 }
-            ) { paddingValues ->
-                Column(Modifier.fillMaxSize().padding(paddingValues)) {
-                    PrimaryTabRow(selectedTabIndex = selectedTab.ordinal) {
-                        SettingsTab.entries.forEach { tab ->
-                            Tab(
-                                selected = selectedTab == tab,
-                                onClick = { selectedTab = tab },
-                                text = { Text(getTabName(tab), fontSize = if (tab == SettingsTab.ResourcePacks) 12.sp else TextUnit.Unspecified) }
-                            )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(onClick = onDismiss) { Text("Отмена") }
+                    Button(onClick = {
+                        val finalVersion = when (selectedBuildType) {
+                            BuildType.FABRIC -> "$selectedMcVersion-fabric-$selectedLoaderVersion"
+                            BuildType.FORGE -> "$selectedMcVersion-forge-$selectedLoaderVersion"
+                            BuildType.QUILT -> "$selectedMcVersion-quilt-$selectedLoaderVersion"
+                            BuildType.NEOFORGE -> "$selectedMcVersion-neoforge-$selectedLoaderVersion"
+                            else -> selectedMcVersion
                         }
-                    }
-                    when (selectedTab) {
-                        SettingsTab.Main -> MainSettingsTab(
-                            build = build,
-                            globalSettings = globalSettings,
-                            buildName = buildName, onBuildNameChange = { buildName = it },
-                            selectedMcVersion = selectedMcVersion, onSelectedMcVersionChange = { selectedMcVersion = it },
-                            selectedLoaderVersion = selectedLoaderVersion, onSelectedLoaderVersionChange = { selectedLoaderVersion = it },
-                            selectedBuildType = selectedBuildType, onSelectedBuildTypeChange = { selectedBuildType = it },
-                            imagePath = imagePath, onImagePathChange = { imagePath = it },
-                            selectedJavaPath = selectedJavaPath, onSelectedJavaPathChange = { selectedJavaPath = it },
-                            useGlobalRam = useGlobalRam, onUseGlobalRamChange = { useGlobalRam = it },
-                            useGlobalJavaArgs = useGlobalJavaArgs, onUseGlobalJavaArgsChange = { useGlobalJavaArgs = it },
-                            useGlobalEnvVars = useGlobalEnvVars, onUseGlobalEnvVarsChange = { useGlobalEnvVars = it },
-                            maxRam = maxRam, onMaxRamChange = { maxRam = it },
-                            javaArgs = javaArgs, onJavaArgsChange = { javaArgs = it },
-                            envVars = envVars, onEnvVarsChange = { envVars = it },
-                            pathManager = pathManager
-                        )
-                        SettingsTab.Mods -> ModsTab(build = build)
-                        SettingsTab.Worlds -> WorldsTab(build = build)
-                        SettingsTab.ResourcePacks -> ResourcePacksTab(build = build)
-                    }
+                        onSave(buildName, finalVersion, selectedBuildType, imagePath, selectedJavaPath, if (useGlobalRam) null else maxRam, if (useGlobalJavaArgs) null else javaArgs, if (useGlobalEnvVars) null else envVars)
+                    }) { Text("Сохранить") }
                 }
+            }
+        }
+    ) { paddingValues ->
+        Column(Modifier.fillMaxSize().padding(paddingValues)) {
+            PrimaryTabRow(
+                selectedTabIndex = selectedTab.ordinal,
+                containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.5f)
+            ) {
+                SettingsTab.entries.forEach { tab ->
+                    Tab(
+                        selected = selectedTab == tab,
+                        onClick = { selectedTab = tab },
+                        text = { Text(getTabName(tab), fontSize = if (tab == SettingsTab.ResourcePacks) 12.sp else TextUnit.Unspecified) }
+                    )
+                }
+            }
+            when (selectedTab) {
+                SettingsTab.Main -> MainSettingsTab(
+                    build = build,
+                    globalSettings = globalSettings,
+                    buildName = buildName, onBuildNameChange = { buildName = it },
+                    selectedMcVersion = selectedMcVersion, onSelectedMcVersionChange = { selectedMcVersion = it },
+                    selectedLoaderVersion = selectedLoaderVersion, onSelectedLoaderVersionChange = { selectedLoaderVersion = it },
+                    selectedBuildType = selectedBuildType, onSelectedBuildTypeChange = { selectedBuildType = it },
+                    imagePath = imagePath, onImagePathChange = { imagePath = it },
+                    selectedJavaPath = selectedJavaPath, onSelectedJavaPathChange = { selectedJavaPath = it },
+                    useGlobalRam = useGlobalRam, onUseGlobalRamChange = { useGlobalRam = it },
+                    useGlobalJavaArgs = useGlobalJavaArgs, onUseGlobalJavaArgsChange = { useGlobalJavaArgs = it },
+                    useGlobalEnvVars = useGlobalEnvVars, onUseGlobalEnvVarsChange = { useGlobalEnvVars = it },
+                    maxRam = maxRam, onMaxRamChange = { maxRam = it },
+                    javaArgs = javaArgs, onJavaArgsChange = { javaArgs = it },
+                    envVars = envVars, onEnvVarsChange = { envVars = it },
+                    pathManager = pathManager
+                )
+                SettingsTab.Mods -> ModsTab(build = build)
+                SettingsTab.Worlds -> WorldsTab(build = build)
+                SettingsTab.ResourcePacks -> ResourcePacksTab(build = build)
             }
         }
     }
@@ -651,7 +672,7 @@ private fun MainSettingsTab(
                 selectedLoaderVersion = selectedLoaderVersion,
                 onLoaderVersionSelected = onSelectedLoaderVersionChange,
                 buildType = selectedBuildType,
-                onBuildTypeSelected = onSelectedBuildTypeChange,
+                onBuildTypeSelected = onSelectedBuildTypeChange, // Corrected parameter name
                 isLoadingMc = isLoading,
                 isLoadingLoader = isLoading,
                 onRefreshMc = { /* No manual refresh needed here anymore */ },
