@@ -64,3 +64,17 @@ fun ErrorDialog(
         confirmButton = { Button(onClick = onDismiss) { Text("OK") } }
     )
 }
+
+@Composable
+fun TestBuildWarningDialog(
+    title: String,
+    message: String,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(title) },
+        text = { Text(message) },
+        confirmButton = { Button(onClick = onDismiss) { Text("Понятно") } }
+    )
+}

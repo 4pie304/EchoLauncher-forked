@@ -33,7 +33,7 @@ import splash.createAndShowSplashScreen
 import state.AppState
 import state.Screen
 import ui.App
-import ui.screens.FirstRunWizard
+import ui.screens.wizard.FirstRunWizard
 import ui.theme.AnimatedAppTheme
 import ui.viewmodel.AppViewModel
 import ui.widgets.ImageLoader

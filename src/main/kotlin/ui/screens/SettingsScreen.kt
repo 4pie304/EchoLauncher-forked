@@ -29,7 +29,6 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import funlauncher.AppSettings
-import funlauncher.NavPanelPosition
 import funlauncher.Theme
 import funlauncher.auth.AccountManager
 import funlauncher.game.VersionMetadataFetcher
@@ -184,24 +183,6 @@ private fun AppearanceSettings(
                             shape = SegmentedButtonDefaults.itemShape(index = index, count = themeOptions.size),
                             onClick = { onSave(currentSettings.copy(theme = Theme.values()[index])) },
                             selected = currentSettings.theme.name == label
-                        ) {
-                            Text(label)
-                        }
-                    }
-                }
-            }
-        }
-        OutlinedCard(modifier = Modifier.fillMaxWidth()) {
-            Column(Modifier.padding(16.dp)) {
-                Text("Положение панели навигации", style = MaterialTheme.typography.titleMedium)
-                Spacer(Modifier.height(16.dp))
-                val navPanelOptions = NavPanelPosition.values().map { it.name }
-                SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
-                    navPanelOptions.forEachIndexed { index, label ->
-                        SegmentedButton(
-                            shape = SegmentedButtonDefaults.itemShape(index = index, count = navPanelOptions.size),
-                            onClick = { onSave(currentSettings.copy(navPanelPosition = NavPanelPosition.values()[index])) },
-                            selected = currentSettings.navPanelPosition.name == label
                         ) {
                             Text(label)
                         }

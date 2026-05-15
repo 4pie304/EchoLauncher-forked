@@ -3,3 +3,4 @@ plugins {
 }
 rootProject.name = "Materia Launcher"
 include("core")
+include("ui-components")

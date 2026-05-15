@@ -51,7 +51,6 @@ enum class FilterState {
 @Composable
 fun ModificationsScreen(
     onBack: () -> Unit,
-    navPanelPosition: NavPanelPosition,
     buildManager: BuildManager,
     onModpackInstalled: () -> Unit,
     pathManager: PathManager,
@@ -238,8 +237,7 @@ fun ModificationsScreen(
     var showAllCategoriesList by remember { mutableStateOf(false) }
     var showAllLoadersList by remember { mutableStateOf(false) }
 
-    val contentPaddingStart by animateDpAsState(if (navPanelPosition == NavPanelPosition.Left) 96.dp else 0.dp)
-    val contentPaddingBottom by animateDpAsState(if (navPanelPosition == NavPanelPosition.Bottom) 80.dp else 0.dp)
+    val contentPaddingBottom by animateDpAsState(80.dp)
 
     fun buildFacetsList(): MutableList<List<String>> {
         val facetsList = mutableListOf<List<String>>()
@@ -369,7 +367,7 @@ fun ModificationsScreen(
         }
     ) { paddingValues ->
         Box(modifier = Modifier.fillMaxSize().padding(paddingValues)) {
-            Row(modifier = Modifier.fillMaxSize().padding(start = contentPaddingStart, bottom = contentPaddingBottom)) {
+            Row(modifier = Modifier.fillMaxSize().padding(bottom = contentPaddingBottom)) {
                 // Левое меню
                 AnimatedVisibility(visible = selectedProject == null) {
                     Column(
@@ -712,44 +710,9 @@ fun ModificationsScreen(
                 )
             }
 
-            // NavigationRail (левая панель)
-            AnimatedVisibility(
-                visible = navPanelPosition == NavPanelPosition.Left,
-                enter = slideInHorizontally(initialOffsetX = { offset -> -offset }),
-                exit = slideOutHorizontally(targetOffsetX = { offset -> -offset }),
-                modifier = Modifier.align(Alignment.CenterStart)
-            ) {
-                NavigationRail(
-                    modifier = Modifier
-                        .padding(start = 16.dp)
-                        .height(400.dp)
-                        .shadow(elevation = 8.dp, shape = RoundedCornerShape(16.dp))
-                        .clip(RoundedCornerShape(16.dp)),
-                    containerColor = MaterialTheme.colorScheme.surface
-                ) {
-                    Column(
-                        modifier = Modifier.fillMaxHeight().padding(vertical = 16.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically)
-                    ) {
-                        IconButton(onClick = onBack) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(Res.string.back))
-                        }
-                        ModificationType.entries.forEach { type ->
-                            NavigationRailItem(
-                                selected = selectedType == type,
-                                onClick = { selectedType = type },
-                                icon = { Icon(type.icon, contentDescription = type.displayName) },
-                                label = { Text(type.displayName) }
-                            )
-                        }
-                    }
-                }
-            }
-
             // NavigationBar (нижняя панель)
             AnimatedVisibility(
-                visible = navPanelPosition == NavPanelPosition.Bottom,
+                visible = true,
                 enter = slideInVertically(initialOffsetY = { offset -> offset }),
                 exit = slideOutVertically(targetOffsetY = { offset -> offset }),
                 modifier = Modifier.align(Alignment.BottomCenter)

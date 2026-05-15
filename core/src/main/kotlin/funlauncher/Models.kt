@@ -37,7 +37,6 @@ data class MinecraftBuild(
 @Serializable
 data class AppSettings(
     val theme: Theme = Theme.System,
-    val navPanelPosition: NavPanelPosition = NavPanelPosition.Left,
     val maxRamMb: Int = 4096,
     val javaArgs: String = "",
     val envVars: String = "",
@@ -48,10 +47,6 @@ data class AppSettings(
 
 enum class Theme {
     System, Light, Dark, Day, Amoled
-}
-
-enum class NavPanelPosition {
-    Left, Bottom
 }
 
 data class JavaInfo(

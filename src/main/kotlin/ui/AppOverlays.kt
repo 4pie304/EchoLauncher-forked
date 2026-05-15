@@ -84,4 +84,12 @@ fun AppOverlays(
             onConfirm = { viewModel.onConfirmDelete(build) }
         )
     }
+
+    if (viewModel.showTestBuildWarning) {
+        TestBuildWarningDialog(
+            title = viewModel.testBuildTitle ?: "",
+            message = viewModel.testBuildMessage ?: "",
+            onDismiss = { viewModel.showTestBuildWarning = false }
+        )
+    }
 }

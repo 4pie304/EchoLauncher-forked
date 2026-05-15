@@ -17,7 +17,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.unit.dp
-import funlauncher.NavPanelPosition
 import funlauncher.managers.CacheManager
 import funlauncher.managers.PathManager
 import funlauncher.net.DownloadManager
@@ -71,18 +70,16 @@ fun App(
             containerColor = MaterialTheme.colorScheme.background
         ) {
             // Анимированные отступы для контента в зависимости от положения навигационной панели.
-            val contentPaddingStart by animateDpAsState(if (appState.settings.navPanelPosition == NavPanelPosition.Left && viewModel.currentTab != AppTab.Modifications) 96.dp else 0.dp)
-            val contentPaddingBottom by animateDpAsState(if (appState.settings.navPanelPosition == NavPanelPosition.Bottom && viewModel.currentTab != AppTab.Modifications) 80.dp else 0.dp)
+            val contentPaddingBottom by animateDpAsState(if (viewModel.currentTab != AppTab.Modifications) 80.dp else 0.dp)
 
             Box(modifier = Modifier.fillMaxSize()) {
                 // Плавный переход между экранами (вкладками).
-                Box(modifier = Modifier.fillMaxSize().padding(start = contentPaddingStart, bottom = contentPaddingBottom)) {
+                Box(modifier = Modifier.fillMaxSize().padding(bottom = contentPaddingBottom)) {
                     Crossfade(targetState = viewModel.currentTab, animationSpec = tween(300)) { tab ->
                         when (tab) {
                             AppTab.Home -> HomeScreen(homeViewModel)
                             AppTab.Modifications -> ModificationsScreen(
                                 onBack = { viewModel.currentTab = AppTab.Home },
-                                navPanelPosition = appState.settings.navPanelPosition,
                                 buildManager = viewModel.buildManager,
                                 onModpackInstalled = {
                                     viewModel.refreshBuilds()
@@ -108,8 +105,7 @@ fun App(
                 // Навигационные панели
                 AppNavigation(
                     currentTab = viewModel.currentTab,
-                    onTabSelected = { viewModel.currentTab = it },
-                    navPanelPosition = appState.settings.navPanelPosition
+                    onTabSelected = { viewModel.currentTab = it }
                 )
 
                 // Кнопка (FAB) для отображения статуса и списка загрузок.
@@ -134,57 +130,11 @@ fun App(
 @Composable
 private fun BoxScope.AppNavigation( // Changed to BoxScope receiver
     currentTab: AppTab,
-    onTabSelected: (AppTab) -> Unit,
-    navPanelPosition: NavPanelPosition
+    onTabSelected: (AppTab) -> Unit
 ) {
-    // Боковая навигационная панель (слева).
-    AnimatedVisibility(
-        visible = navPanelPosition == NavPanelPosition.Left && currentTab != AppTab.Modifications,
-        enter = slideInHorizontally(initialOffsetX = { -it }),
-        exit = slideOutHorizontally(targetOffsetX = { -it }),
-        modifier = Modifier.align(Alignment.CenterStart)
-    ) {
-        NavigationRail(
-            modifier = Modifier
-                .padding(start = 16.dp)
-                .height(300.dp)
-                .shadow(elevation = 8.dp, shape = RoundedCornerShape(16.dp))
-                .clip(RoundedCornerShape(16.dp))
-                .border(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.1f), RoundedCornerShape(16.dp)),
-            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.75f)
-        ) {
-            Column(
-                modifier = Modifier.fillMaxHeight().padding(vertical = 16.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
-            ) {
-                NavigationRailItem(
-                    selected = currentTab == AppTab.Home,
-                    onClick = { onTabSelected(AppTab.Home) },
-                    icon = { Icon(Icons.Default.Home, contentDescription = stringResource(Res.string.tab_home)) },
-                    label = { Text(stringResource(Res.string.tab_home)) }
-                )
-                Spacer(Modifier.height(16.dp))
-                NavigationRailItem(
-                    selected = currentTab == AppTab.Modifications,
-                    onClick = { onTabSelected(AppTab.Modifications) },
-                    icon = { Icon(Icons.Default.Build, contentDescription = stringResource(Res.string.tab_modifications)) },
-                    label = { Text(stringResource(Res.string.tab_modifications)) }
-                )
-                Spacer(Modifier.height(16.dp))
-                NavigationRailItem(
-                    selected = currentTab == AppTab.Settings,
-                    onClick = { onTabSelected(AppTab.Settings) },
-                    icon = { Icon(Icons.Default.Settings, contentDescription = stringResource(Res.string.tab_settings)) },
-                    label = { Text(stringResource(Res.string.tab_settings)) }
-                )
-            }
-        }
-    }
-
     // Нижняя навигационная панель.
     AnimatedVisibility(
-        visible = navPanelPosition == NavPanelPosition.Bottom && currentTab != AppTab.Modifications,
+        visible = currentTab != AppTab.Modifications,
         enter = slideInVertically(initialOffsetY = { it }),
         exit = slideOutVertically(targetOffsetY = { it }),
         modifier = Modifier.align(Alignment.BottomCenter)

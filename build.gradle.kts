@@ -3,14 +3,26 @@ import org.gradle.jvm.tasks.Jar
 import java.io.FileInputStream
 import java.io.FileOutputStream
 import java.util.*
-import org.gradle.api.GradleException
 import org.jetbrains.compose.desktop.application.dsl.TargetFormat
 
 plugins {
-    kotlin("jvm") version "2.3.0"
-    kotlin("plugin.serialization") version "2.3.0"
-    kotlin("plugin.compose") version "2.3.0"
-    id("org.jetbrains.compose") version "1.10.0"
+    kotlin("jvm") version "2.3.21"
+    kotlin("plugin.serialization") version "2.3.21"
+    kotlin("plugin.compose") version "2.3.21"
+    id("org.jetbrains.compose") version "1.10.3"
+}
+
+val isTestBuild = project.hasProperty("testbuild")
+
+fun fetchGitHash(): String {
+    return try {
+        val process = ProcessBuilder("git", "rev-parse", "HEAD")
+            .redirectErrorStream(true)
+            .start()
+        process.inputStream.bufferedReader().use { it.readText() }.trim()
+    } catch (e: Exception) {
+        "unknown"
+    }
 }
 
 // --- Логика определения версии ---
@@ -36,6 +48,7 @@ fun getVersionInfo(): Pair<String, String> {
 }
 
 val (appVersion, appBuildNumber) = getVersionInfo()
+val gitHash = fetchGitHash()
 
 group = "org.chokopieum.software"
 version = appVersion
@@ -109,6 +122,9 @@ compose.desktop {
                 menu = true
                 shortcut = true
                 upgradeUuid = "019b375c-3319-7eec-8098-e50668c43b5a"
+                if (isTestBuild) {
+                    console = true
+                }
             }
         }
     }
@@ -128,6 +144,8 @@ tasks.named<Copy>("processResources") {
         props.setProperty("version", appVersion)
         props.setProperty("buildNumber", appBuildNumber)
         props.setProperty("buildSource", "Local")
+        props.setProperty("gitHash", gitHash)
+        props.setProperty("isTestBuild", isTestBuild.toString())
 
         val wrapperProps = Properties()
         project.file("gradle/wrapper/gradle-wrapper.properties").inputStream().use { wrapperProps.load(it) }

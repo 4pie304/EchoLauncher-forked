@@ -31,7 +31,8 @@ fun createAndShowSplashScreen(statusLabel: JLabel): JWindow? {
             val possiblePaths = listOf(
                 "drawable/$bannerName",
                 bannerName,
-                "composeResources/drawable/$bannerName"
+                "composeResources/drawable/$bannerName",
+                "composeResources/org.chokopieum.software.materia_launcher.generated.resources/drawable/$bannerName"
             )
 
             var bannerStream = possiblePaths.firstNotNullOfOrNull { path ->
@@ -63,7 +64,8 @@ fun createAndShowSplashScreen(statusLabel: JLabel): JWindow? {
             val possibleFontPaths = listOf(
                 "font/$fontName",
                 fontName,
-                "composeResources/font/$fontName"
+                "composeResources/font/$fontName",
+                "composeResources/org.chokopieum.software.materia_launcher.generated.resources/font/$fontName"
             )
 
             var fontStream = possibleFontPaths.firstNotNullOfOrNull { path ->

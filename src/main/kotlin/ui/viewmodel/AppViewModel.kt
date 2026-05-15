@@ -56,8 +56,42 @@ class AppViewModel(
     // Added runningBuild property to fix the error in HomeViewModel
     var runningBuild by mutableStateOf<MinecraftBuild?>(null)
 
+    // Test Build states
+    var showTestBuildWarning by mutableStateOf(false)
+    var testBuildMessage by mutableStateOf<String?>(null)
+    var testBuildTitle by mutableStateOf<String?>(null)
+
     init {
         synchronizeBuilds()
+        checkTestBuild()
+    }
+
+    private fun checkTestBuild() {
+        viewModelScope.launch {
+            val props = java.util.Properties()
+            try {
+                this@AppViewModel.javaClass.classLoader.getResourceAsStream("app.properties")?.use { stream ->
+                    props.load(stream)
+                }
+            } catch (e: Exception) {
+                // ignore
+            }
+            
+            val isTestBuild = props.getProperty("isTestBuild", "false").toBoolean()
+            if (isTestBuild) {
+                val currentHash = props.getProperty("gitHash", "")
+                val latestHash = withContext(Dispatchers.IO) { funlauncher.net.GithubChecker.getLatestCommitHash() }
+                
+                if (latestHash != null && currentHash.isNotEmpty() && latestHash != currentHash) {
+                    testBuildTitle = "Внимание: Устаревшая сборка"
+                    testBuildMessage = "Эта тестовая сборка устарела.\nНа GitHub найден более новый коммит ($latestHash).\nВаш коммит ($currentHash).\n\nПожалуйста, попросите новый установщик у человека, от которого вы получили этот файл."
+                } else {
+                    testBuildTitle = "Тестовая сборка"
+                    testBuildMessage = "Данная сборка была скомпилирована из ветки разработки и может содержать ошибки.\nПожалуйста, сообщайте об ошибках разработчику.\n\nНажмите Ctrl + ` для сохранения логов на рабочий стол."
+                }
+                showTestBuildWarning = true
+            }
+        }
     }
 
     private fun synchronizeBuilds() {
