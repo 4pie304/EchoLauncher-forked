@@ -11,22 +11,21 @@ package funlauncher.net
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
-import java.util.UUID
+import kotlinx.coroutines.*
+import java.util.*
 
 /**
  * Представляет одну задачу загрузки.
  * @param id Уникальный идентификатор задачи.
  * @param description Описание того, что загружается (например, "Java 21" или "Minecraft 1.20.4").
+ * @param job Задание корутины, выполняющее загрузку, для возможности отмены.
  * @param progress Прогресс от 0.0f до 1.0f.
  * @param status Текущий текстовый статус (например, "Скачивание..." или "Распаковка...").
  */
 data class DownloadTask(
     val id: String,
     val description: String,
+    val job: Job,
     val progress: MutableState<Float> = mutableStateOf(0f),
     val status: MutableState<String> = mutableStateOf("В очереди...")
 )
@@ -47,9 +46,13 @@ object DownloadManager {
      * Начинает новую задачу и добавляет ее в список отслеживания.
      * @return Созданная задача.
      */
-    suspend fun startTask(description: String): DownloadTask {
-        val task = DownloadTask(id = UUID.randomUUID().toString(), description = description)
-        withContext(Dispatchers.Main) {
+    fun startTask(description: String, job: Job): DownloadTask {
+        val task = DownloadTask(
+            id = UUID.randomUUID().toString(),
+            description = description,
+            job = job
+        )
+        scope.launch {
             tasks.add(task)
         }
         return task
@@ -73,6 +76,18 @@ object DownloadManager {
     fun endTask(id: String) {
         scope.launch {
             tasks.removeAll { it.id == id }
+        }
+    }
+
+    /**
+     * Отменяет задачу, связанную с ней корутину, и удаляет из списка.
+     */
+    fun cancelTask(id: String) {
+        scope.launch {
+            tasks.find { it.id == id }?.let {
+                it.job.cancel() // Отменяем корутину
+                tasks.remove(it) // Удаляем из списка
+            }
         }
     }
 }

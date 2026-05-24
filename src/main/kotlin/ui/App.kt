@@ -16,6 +16,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import funlauncher.managers.CacheManager
 import funlauncher.managers.PathManager
@@ -67,7 +68,7 @@ fun App(
     AnimatedAppTheme(appState.settings.theme) {
         Scaffold(
             snackbarHost = { SnackbarHost(snackbarHostState) },
-            containerColor = MaterialTheme.colorScheme.background
+            containerColor = Color.Transparent // Делаем фон Scaffold прозрачным
         ) {
             // Анимированные отступы для контента в зависимости от положения навигационной панели.
             val contentPaddingBottom by animateDpAsState(if (viewModel.currentTab != AppTab.Modifications) 80.dp else 0.dp)

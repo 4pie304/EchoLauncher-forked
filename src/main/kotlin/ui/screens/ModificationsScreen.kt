@@ -42,6 +42,8 @@ import androidx.compose.foundation.verticalScroll
 import ui.screens.modifications.ModificationCard
 import ui.screens.modifications.ModificationDetails
 import ui.screens.modifications.InstallModificationDialog
+import kotlin.coroutines.coroutineContext
+import kotlinx.coroutines.job
 
 enum class FilterState {
     INCLUDED, EXCLUDED
@@ -694,7 +696,7 @@ fun ModificationsScreen(
                                 val fileToDownload = version.files.firstOrNull { it.primary } ?: version.files.first()
                                 val destinationDir = File(build.installPath, selectedType.installDir)
                                 val destinationFile = File(destinationDir, fileToDownload.filename)
-                                val task = DownloadManager.startTask("Скачивание ${version.name}")
+                                val task = DownloadManager.startTask("Скачивание ${version.name}", coroutineContext.job)
 
                                 modificationDownloader.download(fileToDownload, destinationFile) { progress, status ->
                                     DownloadManager.updateTask(task.id, progress, status)

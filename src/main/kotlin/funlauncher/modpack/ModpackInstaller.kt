@@ -20,6 +20,7 @@ import kotlin.io.path.createDirectories
 import kotlin.io.path.deleteIfExists
 import kotlin.io.path.exists
 import kotlin.io.path.writeBytes
+import kotlin.coroutines.coroutineContext
 
 class ModpackInstaller(
     private val buildManager: BuildManager,
@@ -34,7 +35,7 @@ class ModpackInstaller(
             val modpackFile = modpackVersion.files.firstOrNull { it.filename.endsWith(".mrpack") }
                 ?: throw IllegalArgumentException("Выбранная версия не является модпаком (.mrpack).")
 
-            val task = DownloadManager.startTask("Установка модпака: ${modpackVersion.name}")
+            val task = DownloadManager.startTask("Установка модпака: ${modpackVersion.name}", coroutineContext.job)
 
             try {
                 // 1. Скачиваем .mrpack файл

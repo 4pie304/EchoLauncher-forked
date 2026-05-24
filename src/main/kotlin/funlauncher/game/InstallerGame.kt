@@ -21,6 +21,8 @@ import kotlin.io.path.exists
 import java.io.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlin.coroutines.coroutineContext
+import kotlinx.coroutines.job
 
 /**
  * Main installer class that coordinates the launch process.
@@ -37,7 +39,7 @@ class MinecraftInstaller(private val build: MinecraftBuild, private val buildMan
     suspend fun launchGame(
         account: Account, javaPath: String, maxRamMb: Int, javaArgs: String, envVars: String
     ): Process {
-        val task = DownloadManager.startTask("Minecraft ${build.version}")
+        val task = DownloadManager.startTask("Minecraft ${build.version}", coroutineContext.job)
         try {
             log("Starting launch for ${build.name} (${build.version})")
             log("System: ${System.getProperty("os.name")} ${System.getProperty("os.arch")}, Java: $javaPath")

@@ -42,6 +42,9 @@ import java.time.OffsetDateTime
 import java.util.*
 import javax.swing.JLabel
 import javax.swing.SwingUtilities
+import kotlin.system.exitProcess
+import java.io.File
+import javax.swing.JOptionPane
 
 // Флаг, указывающий, что основной контент готов к отображению (используется для скрытия сплеш-скрина).
 var isContentReady by mutableStateOf(false)
@@ -62,27 +65,62 @@ fun main(args: Array<String>) {
     // Инициализируем сборщик логов при запуске приложения
     LogCollector.init()
 
+    val os = System.getProperty("os.name").lowercase()
+    val isWindows = os.contains("win")
     val isUiTest = args.contains("--uitest")
 
-    if (isUiTest) {
-        System.setProperty("skiko.renderApi", "SOFTWARE")
-        println("Using render API: SOFTWARE (UI Test)")
-    } else {
-        runCatching {
-            val os = System.getProperty("os.name").lowercase()
-            if (!os.contains("mac")) {
-                val renderApi = try {
-                    Class.forName("org.jetbrains.skiko.vulkan.VulkanWindow")
-                    "VULKAN"
-                } catch (_: Throwable) {
-                    "OPENGL"
-                }
-                System.setProperty("skiko.renderApi", renderApi)
-                println("Using render API: $renderApi")
+    val appDataDir = PathManager.getDefaultAppDataDirectory().toFile()
+    val openGLFlag = File(appDataDir, "use_opengl.flag")
+
+    try {
+        if (isUiTest) {
+            System.setProperty("skiko.renderApi", "SOFTWARE")
+            println("Using render API: SOFTWARE (UI Test)")
+        } else if (isWindows) {
+            if (openGLFlag.exists()) {
+                System.setProperty("skiko.renderApi", "OPENGL")
+                println("Using render API: OPENGL (Fallback via flag)")
+            } else {
+                System.setProperty("skiko.renderApi", "DIRECT3D")
+                println("Using render API: DIRECT3D (Default for Windows)")
             }
         }
-    }
 
+        runApplication(isUiTest)
+
+    } catch (e: Throwable) {
+        val isDirectXError = e.stackTraceToString().contains("org.jetbrains.skiko.RenderException") ||
+                e.stackTraceToString().contains("DirectX") || e.stackTraceToString().contains("DIRECT3D")
+
+        if (isWindows && !openGLFlag.exists() && isDirectXError) {
+            println("DirectX initialization failed. Creating OpenGL fallback flag.")
+            openGLFlag.createNewFile()
+            JOptionPane.showMessageDialog(
+                null,
+                "Не удалось запустить приложение с использованием DirectX.\n" +
+                        "При следующем запуске будет использован OpenGL.\n" +
+                        "Пожалуйста, перезапустите лаунчер.",
+                "Ошибка графики",
+                JOptionPane.ERROR_MESSAGE
+            )
+            exitProcess(1)
+        } else {
+            // Если это не ошибка DirectX или флаг уже существует, просто выводим ошибку
+            println("An unexpected error occurred:")
+            e.printStackTrace()
+            JOptionPane.showMessageDialog(
+                null,
+                "Произошла непредвиденная ошибка:\n${e.message}",
+                "Критическая ошибка",
+                JOptionPane.ERROR_MESSAGE
+            )
+            exitProcess(1)
+        }
+    }
+}
+
+@OptIn(ExperimentalResourceApi::class)
+private fun runApplication(isUiTest: Boolean) {
     val statusLabel = JLabel("Initializing...")
     val splash = createAndShowSplashScreen(statusLabel)
 

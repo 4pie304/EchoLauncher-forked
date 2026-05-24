@@ -175,11 +175,21 @@ class AppViewModel(
             if (useAutoJava) {
                 val recommendedVersion = javaManager.getRecommendedJavaVersion(build.version)
                 val installations = withContext(Dispatchers.IO) { javaManager.findJavaInstallations() }
-                val exactJava = (installations.launcher + installations.system).firstOrNull { it.version == recommendedVersion && it.is64Bit }
+                val allJavas = installations.launcher + installations.system
 
-                if (exactJava != null) {
-                    launchMinecraft(build, exactJava.path, account)
+                // 1. Ищем точное совпадение
+                var suitableJava = allJavas.firstOrNull { it.version == recommendedVersion && it.is64Bit }
+
+                // 2. Если не нашли, ищем любую подходящую (новее или равную)
+                if (suitableJava == null) {
+                    suitableJava = allJavas.filter { it.version >= recommendedVersion && it.is64Bit }
+                                          .maxByOrNull { it.version }
+                }
+
+                if (suitableJava != null) {
+                    launchMinecraft(build, suitableJava.path, account)
                 } else {
+                    // 3. Если ничего не нашли, качаем рекомендованную
                     javaDownloader.downloadAndUnpack(recommendedVersion) { result ->
                         viewModelScope.launch {
                             result.fold(
