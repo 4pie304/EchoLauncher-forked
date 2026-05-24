@@ -139,7 +139,7 @@ fun SettingsTab(
             when (currentSection) {
                 SettingsSection.Appearance -> AppearanceSettings(currentSettings, onSave)
                 SettingsSection.Launch -> LaunchSettings(currentSettings, onSave, onOpenJavaManager, accountViewModel)
-                SettingsSection.Cache -> CacheSettings(versionMetadataFetcher, snackbarHostState, coroutineScope) // Новая секция
+                SettingsSection.Cache -> CacheSettings(versionMetadataFetcher, snackbarHostState, coroutineScope)
                 SettingsSection.About -> AboutScreen()
             }
         }

@@ -22,8 +22,6 @@ fun AnimatedAppTheme(
         Theme.System -> if (isSystemDark) darkColorScheme() else lightColorScheme()
         Theme.Light -> lightColorScheme()
         Theme.Dark -> darkColorScheme()
-        Theme.Day -> dayColorScheme
-        Theme.Amoled -> amoledColorScheme
     }
 
     MaterialTheme(

@@ -23,6 +23,10 @@ import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.sin
 
+enum class ProgressState {
+    Loading, Success, Error
+}
+
 fun lerp(start: Float, stop: Float, fraction: Float): Float {
     return start + (stop - start) * fraction
 }
@@ -141,12 +145,54 @@ private fun drawCheckmark(
     )
 }
 
+private fun drawCross(
+    drawScope: DrawScope,
+    color: Color,
+    strokeWidthPx: Float,
+    centerX: Float,
+    centerY: Float,
+    radius: Float,
+    progress: Float 
+) {
+    if (progress <= 0f) return
+
+    val size = radius * 0.4f
+
+    val path = Path()
+
+    // Первая линия крестика (сверху-слева направо-вниз)
+    if (progress > 0f) {
+        val p1 = progress.coerceAtMost(0.5f) / 0.5f
+        path.moveTo(centerX - size, centerY - size)
+        path.lineTo(
+            lerp(centerX - size, centerX + size, p1),
+            lerp(centerY - size, centerY + size, p1)
+        )
+    }
+    
+    // Вторая линия крестика (сверху-справа налево-вниз)
+    if (progress > 0.5f) {
+        val p2 = (progress - 0.5f) / 0.5f
+        path.moveTo(centerX + size, centerY - size)
+        path.lineTo(
+            lerp(centerX + size, centerX - size, p2),
+            lerp(centerY - size, centerY + size, p2)
+        )
+    }
+
+    drawScope.drawPath(
+        path = path,
+        color = color,
+        style = Stroke(width = strokeWidthPx, cap = StrokeCap.Round)
+    )
+}
+
 @Composable
 fun MateriaCircularProgressIndicator(
     modifier: Modifier = Modifier,
     color: Color = Color(0xFF6200EE),
     strokeWidth: Dp = 12.dp,
-    isSuccess: Boolean = false
+    state: ProgressState = ProgressState.Loading
 ) {
     val rotation = remember { Animatable(0f) }
 
@@ -167,19 +213,24 @@ fun MateriaCircularProgressIndicator(
     val ballY = remember { Animatable(0f) }
 
     val checkmarkProgress = remember { Animatable(0f) } 
-    val successColor = remember { Animatable(Color.Unspecified) }
+    val crossProgress = remember { Animatable(0f) }
+    val stateColor = remember { Animatable(Color.Unspecified) }
+    
+    val arcOffsetY = remember { Animatable(0f) }
 
     // Инициализация начального цвета
     LaunchedEffect(color) {
-        if (successColor.value == Color.Unspecified) {
-            successColor.snapTo(color)
-        } else if (!isSuccess) {
-            successColor.animateTo(color)
+        if (stateColor.value == Color.Unspecified) {
+            stateColor.snapTo(color)
+        } else if (state == ProgressState.Loading) {
+            stateColor.animateTo(color)
         }
     }
 
-    LaunchedEffect(isSuccess) {
-        if (!isSuccess) {
+    LaunchedEffect(state) {
+        if (state == ProgressState.Loading) {
+            crossProgress.snapTo(0f)
+            checkmarkProgress.snapTo(0f)
             while (true) {
                 rotation.snapTo(0f)
                 s1Recoil.snapTo(0f)
@@ -188,113 +239,119 @@ fun MateriaCircularProgressIndicator(
                 paddle2Y.snapTo(0f)
                 ballY.snapTo(0f)
                 checkmarkProgress.snapTo(0f)
+                crossProgress.snapTo(0f)
                 straightness.snapTo(0f)
+                arcOffsetY.snapTo(0f)
                 
+                // Ускоряем вращение
                 rotation.animateTo(
                     targetValue = 720f,
-                    animationSpec = tween(1200, easing = EaseInOutCubic)
+                    animationSpec = tween(900, easing = EaseInOutCubic)
                 )
                 
-                launch { s1CenterLocal.animateTo(0f, tween(500, easing = EaseInOutSine)) }
-                launch { s1Sweep.animateTo(60f, tween(500, easing = EaseInOutSine)) }
-                launch { s2CenterLocal.animateTo(180f, tween(500, easing = EaseInOutSine)) }
-                s2Sweep.animateTo(60f, tween(500, easing = EaseInOutSine))
+                launch { s1CenterLocal.animateTo(0f, tween(400, easing = EaseInOutSine)) }
+                launch { s1Sweep.animateTo(60f, tween(400, easing = EaseInOutSine)) }
+                launch { s2CenterLocal.animateTo(180f, tween(400, easing = EaseInOutSine)) }
+                s2Sweep.animateTo(60f, tween(400, easing = EaseInOutSine))
                 
-                launch { straightness.animateTo(1f, tween(400, easing = EaseInOutSine)) }
-                ballScale.animateTo(1f, tween(400, easing = EaseOutBack))
+                launch { straightness.animateTo(1f, tween(300, easing = EaseInOutSine)) }
+                ballScale.animateTo(1f, tween(300, easing = EaseOutBack))
 
-                launch { ballY.animateTo(-0.6f, tween(300, easing = LinearEasing)) }
-                launch { paddle1Y.animateTo(-0.6f, tween(300, easing = EaseInOutSine)) }
-                ballPos.animateTo(1f, tween(300, easing = LinearEasing))
+                // Пинг-понг ускоряем
+                launch { ballY.animateTo(-0.6f, tween(250, easing = LinearEasing)) }
+                launch { paddle1Y.animateTo(-0.6f, tween(250, easing = EaseInOutSine)) }
+                ballPos.animateTo(1f, tween(250, easing = LinearEasing))
                 launch {
-                    s1Recoil.animateTo(0.15f, tween(100, easing = EaseOutQuad))
-                    s1Recoil.animateTo(0f, tween(200, easing = EaseInOutQuad))
+                    s1Recoil.animateTo(0.15f, tween(80, easing = EaseOutQuad))
+                    s1Recoil.animateTo(0f, tween(150, easing = EaseInOutQuad))
                 }
                 
-                launch { ballY.animateTo(0.6f, tween(600, easing = LinearEasing)) }
-                launch { paddle2Y.animateTo(0.6f, tween(500, easing = EaseInOutSine)) }
-                ballPos.animateTo(-1f, tween(600, easing = LinearEasing))
+                launch { ballY.animateTo(0.6f, tween(400, easing = LinearEasing)) }
+                launch { paddle2Y.animateTo(0.6f, tween(350, easing = EaseInOutSine)) }
+                ballPos.animateTo(-1f, tween(400, easing = LinearEasing))
                 launch {
-                    s2Recoil.animateTo(0.15f, tween(100, easing = EaseOutQuad))
-                    s2Recoil.animateTo(0f, tween(200, easing = EaseInOutQuad))
+                    s2Recoil.animateTo(0.15f, tween(80, easing = EaseOutQuad))
+                    s2Recoil.animateTo(0f, tween(150, easing = EaseInOutQuad))
                 }
                 
-                launch { ballY.animateTo(-0.3f, tween(600, easing = LinearEasing)) }
-                launch { paddle1Y.animateTo(-0.3f, tween(500, easing = EaseInOutSine)) }
-                ballPos.animateTo(1f, tween(600, easing = LinearEasing))
+                launch { ballY.animateTo(-0.3f, tween(400, easing = LinearEasing)) }
+                launch { paddle1Y.animateTo(-0.3f, tween(350, easing = EaseInOutSine)) }
+                ballPos.animateTo(1f, tween(400, easing = LinearEasing))
                 launch {
-                    s1Recoil.animateTo(0.15f, tween(100, easing = EaseOutQuad))
-                    s1Recoil.animateTo(0f, tween(200, easing = EaseInOutQuad))
+                    s1Recoil.animateTo(0.15f, tween(80, easing = EaseOutQuad))
+                    s1Recoil.animateTo(0f, tween(150, easing = EaseInOutQuad))
                 }
 
-                launch { ballY.animateTo(0.3f, tween(600, easing = LinearEasing)) }
-                launch { paddle2Y.animateTo(0.3f, tween(500, easing = EaseInOutSine)) }
-                ballPos.animateTo(-1f, tween(600, easing = LinearEasing))
+                launch { ballY.animateTo(0.3f, tween(400, easing = LinearEasing)) }
+                launch { paddle2Y.animateTo(0.3f, tween(350, easing = EaseInOutSine)) }
+                ballPos.animateTo(-1f, tween(400, easing = LinearEasing))
                 launch {
-                    s2Recoil.animateTo(0.15f, tween(100, easing = EaseOutQuad))
-                    s2Recoil.animateTo(0f, tween(200, easing = EaseInOutQuad))
+                    s2Recoil.animateTo(0.15f, tween(80, easing = EaseOutQuad))
+                    s2Recoil.animateTo(0f, tween(150, easing = EaseInOutQuad))
                 }
 
-                launch { ballY.animateTo(0f, tween(300, easing = LinearEasing)) }
-                launch { paddle1Y.animateTo(0f, tween(300, easing = EaseInOutSine)) }
-                launch { paddle2Y.animateTo(0f, tween(300, easing = EaseInOutSine)) }
-                ballPos.animateTo(0f, tween(300, easing = LinearEasing))
+                launch { ballY.animateTo(0f, tween(250, easing = LinearEasing)) }
+                launch { paddle1Y.animateTo(0f, tween(250, easing = EaseInOutSine)) }
+                launch { paddle2Y.animateTo(0f, tween(250, easing = EaseInOutSine)) }
+                ballPos.animateTo(0f, tween(250, easing = LinearEasing))
 
-                launch { straightness.animateTo(0f, tween(400, easing = EaseInOutSine)) }
-                ballScale.animateTo(0f, tween(400, easing = EaseInOutSine))
+                launch { straightness.animateTo(0f, tween(300, easing = EaseInOutSine)) }
+                ballScale.animateTo(0f, tween(300, easing = EaseInOutSine))
 
-                launch { s1CenterLocal.animateTo(90f, tween(500, easing = EaseInOutSine)) }
-                launch { s1Sweep.animateTo(280f, tween(500, easing = EaseInOutSine)) }
-                launch { s2CenterLocal.animateTo(90f, tween(500, easing = EaseInOutSine)) }
-                s2Sweep.animateTo(0f, tween(500, easing = EaseInOutSine))
+                launch { s1CenterLocal.animateTo(90f, tween(400, easing = EaseInOutSine)) }
+                launch { s1Sweep.animateTo(280f, tween(400, easing = EaseInOutSine)) }
+                launch { s2CenterLocal.animateTo(90f, tween(400, easing = EaseInOutSine)) }
+                s2Sweep.animateTo(0f, tween(400, easing = EaseInOutSine))
                 
-                delay(100)
+                delay(50)
             }
         } else {
-            // ЭТАП УСПЕХА
+            // ЭТАП ЗАВЕРШЕНИЯ (УСПЕХ ИЛИ ОШИБКА)
             
-            // Если анимация прерывается на фазе пинг-понга, мы должны мягко вернуть все назад
-            launch { paddle1Y.animateTo(0f, tween(400)) }
-            launch { paddle2Y.animateTo(0f, tween(400)) }
-            launch { s1Recoil.animateTo(0f, tween(400)) }
-            launch { s2Recoil.animateTo(0f, tween(400)) }
+            // Быстрее возвращаем все назад
+            launch { paddle1Y.animateTo(0f, tween(300)) }
+            launch { paddle2Y.animateTo(0f, tween(300)) }
+            launch { s1Recoil.animateTo(0f, tween(300)) }
+            launch { s2Recoil.animateTo(0f, tween(300)) }
             
-            // Если мяч на экране - прячем
-            launch { ballScale.animateTo(0f, tween(300, easing = EaseInOutSine)) }
+            launch { ballScale.animateTo(0f, tween(250, easing = EaseInOutSine)) }
             
-            // Если прямые - сгибаем обратно
-            launch { straightness.animateTo(0f, tween(400, easing = EaseInOutSine)) }
+            launch { straightness.animateTo(0f, tween(300, easing = EaseInOutSine)) }
             
-            // Сливаем палочки вниз
-            launch { s2Sweep.animateTo(0f, tween(400, easing = EaseInOutSine)) }
-            launch { s2CenterLocal.animateTo(90f, tween(400, easing = EaseInOutSine)) }
+            launch { s2Sweep.animateTo(0f, tween(300, easing = EaseInOutSine)) }
+            launch { s2CenterLocal.animateTo(90f, tween(300, easing = EaseInOutSine)) }
             
-            launch { s1CenterLocal.animateTo(90f, tween(500, easing = EaseInOutSine)) }
+            launch { s1CenterLocal.animateTo(if (state == ProgressState.Error) -90f else 90f, tween(400, easing = EaseInOutSine)) }
             
-            // Останавливаем вращение на красивом угле
             val targetRotation = (Math.round(rotation.value / 360f) * 360f).toFloat()
-            launch { rotation.animateTo(targetRotation, tween(500, easing = EaseInOutSine)) }
+            launch { rotation.animateTo(targetRotation, tween(400, easing = EaseInOutSine)) }
             
-            // Ждем завершения слияния и сгибания
-            delay(500)
+            delay(350)
             
-            // Цвет плавно становится зеленым
-            launch { successColor.animateTo(Color(0xFF4CAF50), tween(500)) }
+            // Цвет плавно становится зеленым или красным
+            val endColor = if (state == ProgressState.Success) Color(0xFF4CAF50) else Color(0xFFF44336)
+            launch { stateColor.animateTo(endColor, tween(300)) }
             
-            // Убеждаемся что выпрямления точно нет (0)
             straightness.snapTo(0f)
             
-            // Рисуем улыбку
-            s1Sweep.animateTo(140f, tween(600, easing = EaseOutBack))
+            // Если ошибка - двигаем дугу вниз
+            if (state == ProgressState.Error) {
+                launch { arcOffsetY.animateTo(0.6f, tween(450, easing = EaseOutBack)) }
+            }
             
-            delay(400)
+            // Рисуем улыбку или грустную улыбку
+            s1Sweep.animateTo(140f, tween(450, easing = EaseOutBack))
+            
+            delay(200)
 
-            // Сжимаем
-            launch { s1Sweep.animateTo(0f, tween(300, easing = EaseInSine)) }
-            delay(150)
+            launch { s1Sweep.animateTo(0f, tween(250, easing = EaseInSine)) }
+            delay(100)
             
-            // Галочка
-            checkmarkProgress.animateTo(1f, tween(400, easing = EaseOutBack))
+            if (state == ProgressState.Success) {
+                checkmarkProgress.animateTo(1f, tween(350, easing = EaseOutBack))
+            } else {
+                crossProgress.animateTo(1f, tween(350, easing = EaseOutBack))
+            }
         }
     }
 
@@ -305,7 +362,7 @@ fun MateriaCircularProgressIndicator(
         val centerY = size.height / 2
         val radius = (size.width - strokeWidth.toPx()) / 2
         
-        val currentColor = if (successColor.value == Color.Unspecified) color else successColor.value
+        val currentColor = if (stateColor.value == Color.Unspecified) color else stateColor.value
         
         if (s1Sweep.value > 0f) {
             drawStick(
@@ -319,7 +376,7 @@ fun MateriaCircularProgressIndicator(
                 sweepDeg = s1Sweep.value,
                 straightness = straightness.value,
                 recoil = s1Recoil.value,
-                offsetY = paddle1Y.value
+                offsetY = paddle1Y.value + arcOffsetY.value
             )
         }
         
@@ -362,6 +419,18 @@ fun MateriaCircularProgressIndicator(
                 centerY = centerY,
                 radius = radius,
                 progress = checkmarkProgress.value
+            )
+        }
+        
+        if (crossProgress.value > 0f) {
+            drawCross(
+                drawScope = this,
+                color = currentColor,
+                strokeWidthPx = strokeWidth.toPx(),
+                centerX = centerX,
+                centerY = centerY,
+                radius = radius,
+                progress = crossProgress.value
             )
         }
     }

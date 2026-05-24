@@ -87,36 +87,49 @@ fun HomeScreen(
                 if (viewModel.builds.isEmpty()) {
                     EmptyState(Modifier.fillMaxSize())
                 } else {
-                    LazyVerticalGrid(
-                        columns = GridCells.Adaptive(minSize = 220.dp),
-                        modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(16.dp),
-                        horizontalArrangement = Arrangement.spacedBy(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .padding(16.dp)
+                            .clip(RoundedCornerShape(24.dp))
+                            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.2f))
+                            .border(
+                                width = 1.dp,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.15f),
+                                shape = RoundedCornerShape(24.dp)
+                            )
                     ) {
-                        itemsIndexed(filteredBuilds, key = { _, build -> build.name }) { index, build ->
-                            AnimatedVisibility(
-                                visible = build.name !in viewModel.buildsPendingDeletion,
-                                exit = shrinkVertically(animationSpec = tween(durationMillis = 300)) + fadeOut(
-                                    animationSpec = tween(durationMillis = 250)
-                                )
-                            ) {
-                                AnimatedBuildCard(
-                                    build = build,
-                                    isRunning = build == viewModel.runningBuild,
-                                    isPreparing = build.name == viewModel.isLaunchingBuildId,
-                                    onLaunchClick = { viewModel.onLaunchClick(build) },
-                                    onOpenFolderClick = { viewModel.onOpenFolderClick(build) },
-                                    onDeleteClick = { viewModel.onDeleteBuildClick(build) },
-                                    onCardClick = { expandedBuild = build },
-                                    index = index,
-                                    modifier = Modifier.animateItem(
-                                        placementSpec = spring(
-                                            dampingRatio = Spring.DampingRatioLowBouncy,
-                                            stiffness = Spring.StiffnessMedium
+                        LazyVerticalGrid(
+                            columns = GridCells.Adaptive(minSize = 220.dp),
+                            modifier = Modifier.fillMaxSize(),
+                            contentPadding = PaddingValues(16.dp),
+                            horizontalArrangement = Arrangement.spacedBy(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(16.dp)
+                        ) {
+                            itemsIndexed(filteredBuilds, key = { _, build -> build.name }) { index, build ->
+                                AnimatedVisibility(
+                                    visible = build.name !in viewModel.buildsPendingDeletion,
+                                    exit = shrinkVertically(animationSpec = tween(durationMillis = 300)) + fadeOut(
+                                        animationSpec = tween(durationMillis = 250)
+                                    )
+                                ) {
+                                    AnimatedBuildCard(
+                                        build = build,
+                                        isRunning = build == viewModel.runningBuild,
+                                        isPreparing = build.name == viewModel.isLaunchingBuildId,
+                                        onLaunchClick = { viewModel.onLaunchClick(build) },
+                                        onOpenFolderClick = { viewModel.onOpenFolderClick(build) },
+                                        onSettingsClick = { expandedBuild = build },
+                                        onCardClick = { expandedBuild = build },
+                                        index = index,
+                                        modifier = Modifier.animateItem(
+                                            placementSpec = spring(
+                                                dampingRatio = Spring.DampingRatioLowBouncy,
+                                                stiffness = Spring.StiffnessMedium
+                                            )
                                         )
                                     )
-                                )
+                                }
                             }
                         }
                     }
@@ -179,6 +192,39 @@ fun ExpandedBuildScreenWrapper(
                 }
                 Spacer(Modifier.width(16.dp))
                 Text(build.name, style = MaterialTheme.typography.headlineMedium)
+                
+                Spacer(Modifier.weight(1f))
+                
+                // Кнопка удаления сборки (перенесена из карточки)
+                var showDeleteConfirm by remember { mutableStateOf(false) }
+                IconButton(onClick = { showDeleteConfirm = true }) {
+                    Icon(Icons.Default.Delete, contentDescription = "Удалить сборку", tint = MaterialTheme.colorScheme.error)
+                }
+                
+                if (showDeleteConfirm) {
+                    AlertDialog(
+                        onDismissRequest = { showDeleteConfirm = false },
+                        title = { Text("Удалить сборку?") },
+                        text = { Text("Вы уверены, что хотите удалить сборку '${build.name}'? Это действие нельзя отменить.") },
+                        confirmButton = {
+                            Button(
+                                onClick = {
+                                    viewModel.onDeleteBuildClick(build)
+                                    showDeleteConfirm = false
+                                    onDismiss()
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                            ) {
+                                Text("Удалить")
+                            }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { showDeleteConfirm = false }) {
+                                Text("Отмена")
+                            }
+                        }
+                    )
+                }
             }
 
             // Встраиваем экран настроек (без его собственного Scaffold/TopBar, только контент)
@@ -221,29 +267,30 @@ private fun HomeTopAppBar(
         title = {
             Row(
                 modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp),
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    // Аватар слева
-                    IconButton(onClick = onOpenAccountManager) {
-                        AvatarImage(
-                            account = viewModel.currentAccount,
-                            modifier = Modifier.size(40.dp).clip(SquircleShape)
-                        )
-                    }
-
-                    Spacer(Modifier.width(16.dp))
-
-                    // Поисковая строка
-                    ExpandableSearchBar(
-                        searchQuery = searchQuery,
-                        onSearchQueryChange = onSearchQueryChange
+                // Аватар слева
+                IconButton(onClick = onOpenAccountManager) {
+                    AvatarImage(
+                        account = viewModel.currentAccount,
+                        modifier = Modifier.size(40.dp).clip(SquircleShape)
                     )
                 }
+            }
+        },
+        actions = {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                // Поисковая строка
+                ExpandableSearchBar(
+                    searchQuery = searchQuery,
+                    onSearchQueryChange = onSearchQueryChange
+                )
 
                 FilledTonalButton(onClick = onAddBuildClick) {
-                    Text("Создать")
+                    Text("Добавить")
                 }
             }
         },
@@ -373,7 +420,7 @@ private fun EmptyState(modifier: Modifier = Modifier) {
         contentAlignment = Alignment.Center
     ) {
         Text(
-            "Сборки не найдены.\nНажмите \"Создать\", чтобы добавить новую.",
+            "Сборки не найдены.\nНажмите \"Добавить\", чтобы добавить новую.",
             style = MaterialTheme.typography.headlineSmall,
             textAlign = TextAlign.Center,
             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
@@ -412,7 +459,7 @@ private fun AnimatedBuildCard(
     isPreparing: Boolean,
     onLaunchClick: () -> Unit,
     onOpenFolderClick: () -> Unit,
-    onDeleteClick: () -> Unit,
+    onSettingsClick: () -> Unit,
     onCardClick: () -> Unit,
     index: Int,
     modifier: Modifier = Modifier
@@ -449,7 +496,7 @@ private fun AnimatedBuildCard(
         isPreparing = isPreparing,
         onLaunchClick = onLaunchClick,
         onOpenFolderClick = onOpenFolderClick,
-        onDeleteClick = onDeleteClick,
+        onSettingsClick = onSettingsClick,
         onCardClick = onCardClick,
         modifier = modifier
             .graphicsLayer {
@@ -468,11 +515,10 @@ private fun BuildCard(
     isPreparing: Boolean,
     onLaunchClick: () -> Unit,
     onOpenFolderClick: () -> Unit,
-    onDeleteClick: () -> Unit,
+    onSettingsClick: () -> Unit,
     onCardClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    var showMenu by remember { mutableStateOf(false) }
     val interactionSource = remember { MutableInteractionSource() }
     val isHovered by interactionSource.collectIsHoveredAsState()
 
@@ -491,7 +537,7 @@ private fun BuildCard(
         shape = RoundedCornerShape(16.dp),
         border = BorderStroke(2.dp, borderColor),
         elevation = CardDefaults.cardElevation(defaultElevation = 4.dp, hoveredElevation = 12.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Column(modifier = Modifier.fillMaxSize()) {
             // Image section
@@ -507,32 +553,6 @@ private fun BuildCard(
                     Box(modifier = Modifier.fillMaxSize().background(
                         Brush.verticalGradient(listOf(Color(0xFF606060), Color(0xFF303030)))
                     ))
-                }
-                
-                // Content overlay on top of image at the top
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(8.dp),
-                    horizontalArrangement = Arrangement.End
-                ) {
-                    Box(modifier = Modifier.background(Color.Black.copy(alpha = 0.5f), RoundedCornerShape(50))) {
-                        IconButton(onClick = { showMenu = true }, modifier = Modifier.size(32.dp)) {
-                            Icon(Icons.Default.MoreVert, "Дополнительно", tint = Color.White, modifier = Modifier.size(20.dp))
-                        }
-                        DropdownMenu(
-                            expanded = showMenu,
-                            onDismissRequest = { showMenu = false }
-                        ) {
-                            DropdownMenuItem(
-                                text = { Text("Удалить") },
-                                onClick = {
-                                    onDeleteClick()
-                                    showMenu = false
-                                }
-                            )
-                        }
-                    }
                 }
             }
 
@@ -575,7 +595,7 @@ private fun BuildCard(
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     LaunchButton(
@@ -584,17 +604,34 @@ private fun BuildCard(
                         isRunning = isRunning,
                         modifier = Modifier.weight(1f)
                     )
-                    Spacer(Modifier.width(8.dp))
-                    IconButton(
+                    Button(
+                        onClick = onSettingsClick,
+                        modifier = Modifier.size(40.dp),
+                        shape = RoundedCornerShape(8.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                        ),
+                        contentPadding = PaddingValues(0.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.Settings, 
+                            contentDescription = "Настройки"
+                        )
+                    }
+                    Button(
                         onClick = onOpenFolderClick,
-                        modifier = Modifier
-                            .size(40.dp)
-                            .background(MaterialTheme.colorScheme.secondaryContainer, RoundedCornerShape(8.dp))
+                        modifier = Modifier.size(40.dp),
+                        shape = RoundedCornerShape(8.dp),
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                            contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                        ),
+                        contentPadding = PaddingValues(0.dp)
                     ) {
                         Icon(
                             Icons.Default.Folder, 
-                            contentDescription = "Открыть папку",
-                            tint = MaterialTheme.colorScheme.onSecondaryContainer
+                            contentDescription = "Открыть папку"
                         )
                     }
                 }
@@ -617,12 +654,12 @@ fun LaunchButton(
             containerColor = when {
                 isPreparing -> MaterialTheme.colorScheme.surfaceVariant
                 isRunning -> MaterialTheme.colorScheme.error
-                else -> MaterialTheme.colorScheme.primary
+                else -> Color(0xFF4CAF50) // Green color for "Play"
             },
             contentColor = when {
                 isPreparing -> MaterialTheme.colorScheme.onSurfaceVariant
                 isRunning -> MaterialTheme.colorScheme.onError
-                else -> MaterialTheme.colorScheme.onPrimary
+                else -> Color.White
             },
             disabledContainerColor = MaterialTheme.colorScheme.surfaceVariant
         ),

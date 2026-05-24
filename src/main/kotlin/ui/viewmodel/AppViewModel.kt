@@ -55,6 +55,9 @@ class AppViewModel(
 
     // Added runningBuild property to fix the error in HomeViewModel
     var runningBuild by mutableStateOf<MinecraftBuild?>(null)
+    
+    // Store reference to running process
+    private var runningProcess: Process? = null
 
     // Test Build states
     var showTestBuildWarning by mutableStateOf(false)
@@ -131,13 +134,23 @@ class AppViewModel(
             runningBuild = build
 
             withContext(Dispatchers.IO) {
-                installer.launchGame(
+                runningProcess = installer.launchGame(
                     account = account,
                     javaPath = javaPath,
                     maxRamMb = finalMaxRam,
                     javaArgs = finalJavaArgs,
                     envVars = finalEnvVars
                 )
+                
+                // Wait for process to exit
+                runningProcess?.waitFor()
+                
+                withContext(Dispatchers.Main) {
+                    isLaunchingBuildId = null
+                    runningBuild = null
+                    daemonStatus = "STOPPED"
+                    runningProcess = null
+                }
             }
         }.onFailure { e ->
             e.printStackTrace()
@@ -145,6 +158,7 @@ class AppViewModel(
             isLaunchingBuildId = null
             runningBuild = null
             daemonStatus = "STOPPED"
+            runningProcess = null
         }
     }
 
@@ -190,8 +204,13 @@ class AppViewModel(
             errorDialogMessage = "Сначала выберите аккаунт!"
             return
         }
-        if (isGameRunning) {
-            // TODO: Show snackbar that a game is already running
+        
+        // If a game is already running, this button acts as a STOP button
+        if (isGameRunning && runningBuild == build) {
+            stopGame()
+            return
+        } else if (isGameRunning) {
+            errorDialogMessage = "Уже запущена другая сборка!"
             return
         }
 
@@ -204,6 +223,25 @@ class AppViewModel(
         } else {
             performLaunch(build)
         }
+    }
+    
+    fun stopGame() {
+        runningProcess?.let {
+            if (it.isAlive) {
+                it.destroy()
+                // Force kill if it doesn't stop gracefully
+                viewModelScope.launch(Dispatchers.IO) {
+                    delay(3000)
+                    if (it.isAlive) {
+                        it.destroyForcibly()
+                    }
+                }
+            }
+        }
+        daemonStatus = "STOPPED"
+        runningBuild = null
+        isLaunchingBuildId = null
+        runningProcess = null
     }
 
     fun onConfirmRamWarning(build: MinecraftBuild) {

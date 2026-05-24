@@ -19,6 +19,8 @@ import java.net.ConnectException
 import java.net.UnknownHostException
 import kotlin.io.path.exists
 import java.io.File
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
  * Main installer class that coordinates the launch process.
@@ -34,7 +36,7 @@ class MinecraftInstaller(private val build: MinecraftBuild, private val buildMan
 
     suspend fun launchGame(
         account: Account, javaPath: String, maxRamMb: Int, javaArgs: String, envVars: String
-    ) {
+    ): Process {
         val task = DownloadManager.startTask("Minecraft ${build.version}")
         try {
             log("Starting launch for ${build.name} (${build.version})")
@@ -62,10 +64,11 @@ class MinecraftInstaller(private val build: MinecraftBuild, private val buildMan
             payload.environment.forEach { (key, value) -> pb.environment()[key] = value }
             
             log("Launching: ${payload.command.joinToString(" ")}")
-            pb.start() // Запуск процесса в фоне напрямую
+            val process = pb.start() // Запуск процесса в фоне напрямую
 
             DownloadManager.updateTask(task.id, 1.0f, "Игра запущена")
             log("Game started successfully.")
+            return process
 
         } catch (e: Exception) {
             handleLaunchException(e)
