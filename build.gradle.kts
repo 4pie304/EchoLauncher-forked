@@ -114,6 +114,8 @@ compose.desktop {
             // Встраиваем лицензию в установщик
             licenseFile.set(project.file("LICENSE"))
 
+            // Используем classpath вместо module path, чтобы избежать проблем с нативными библиотеками (sqlite-jdbc).
+            // Compose-плагин автоматически подхватит все runtime-зависимости.
             modules("ALL-MODULE-PATH")
 
             // Собираем только EXE для Windows со встроенной JDK
