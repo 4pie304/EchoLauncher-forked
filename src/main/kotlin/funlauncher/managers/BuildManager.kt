@@ -182,6 +182,10 @@ class BuildManager(private val pathManager: PathManager) {
             }
 
             val buildPath = getBuildPath(name)
+            
+            // Получить текущее максимальное значение sortOrder для новой сборки
+            val maxSortOrder = buildDao.getAll().maxOfOrNull { it.sortOrder } ?: -1
+            
             val newBuild = MinecraftBuild(
                 name = name.trim(),
                 version = version,
@@ -191,7 +195,8 @@ class BuildManager(private val pathManager: PathManager) {
                 javaPath = "", // Автоматический выбор по умолчанию
                 maxRamMb = null,
                 javaArgs = null,
-                envVars = null
+                envVars = null,
+                sortOrder = maxSortOrder + 1
             )
 
             buildDao.add(newBuild)
@@ -309,6 +314,12 @@ class BuildManager(private val pathManager: PathManager) {
         }
     }
 
+    suspend fun reorderBuilds(builds: List<MinecraftBuild>) = withContext(Dispatchers.IO) {
+        buildsMutex.withLock {
+            buildDao.updateOrder(builds)
+        }
+    }
+
     fun getBuildPath(buildName: String): Path {
         return instancesPath.resolve(buildName.trim())
     }
@@ -341,7 +352,8 @@ private data class OldMinecraftBuild(
             else -> BuildType.VANILLA
         }
         return MinecraftBuild(
-            name, version, buildType, installPath, createdAt, imagePath, javaPath, maxRamMb, javaArgs, envVars
+            name, version, buildType, installPath, createdAt, imagePath, javaPath, maxRamMb, javaArgs, envVars,
+            sortOrder = 0
         )
     }
 }

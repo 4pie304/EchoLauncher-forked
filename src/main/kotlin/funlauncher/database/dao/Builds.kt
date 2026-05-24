@@ -23,6 +23,7 @@ object Builds : Table() {
     val maxRamMb = integer("max_ram_mb").nullable()
     val javaArgs = text("java_args").nullable()
     val envVars = text("env_vars").nullable()
+    val sortOrder = integer("sort_order").default(0)
 
     override val primaryKey = PrimaryKey(id)
 }

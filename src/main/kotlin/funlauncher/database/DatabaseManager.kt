@@ -21,7 +21,7 @@ object DatabaseManager {
         Database.connect("jdbc:sqlite:${dbFile.toFile().absolutePath}", "org.sqlite.JDBC")
 
         transaction {
-            SchemaUtils.create(Accounts, Builds)
+            SchemaUtils.createMissingTablesAndColumns(Accounts, Builds)
         }
     }
 }

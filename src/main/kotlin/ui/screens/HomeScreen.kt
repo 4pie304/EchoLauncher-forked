@@ -24,7 +24,8 @@ import androidx.compose.foundation.interaction.collectIsHoveredAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.itemsIndexed
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
@@ -51,6 +52,8 @@ import funlauncher.BuildType
 import funlauncher.MinecraftBuild
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import sh.calvin.reorderable.ReorderableItem
+import sh.calvin.reorderable.rememberReorderableLazyGridState
 import ui.viewmodel.HomeViewModel
 import ui.widgets.AvatarImage
 import ui.widgets.ImageLoader
@@ -63,6 +66,13 @@ fun HomeScreen(
 ) {
     val filteredBuilds by rememberUpdatedState(viewModel.filteredBuilds)
     var expandedBuild by remember { mutableStateOf<MinecraftBuild?>(null) }
+    
+    val lazyGridState = rememberLazyGridState()
+    val reorderableState = rememberReorderableLazyGridState(lazyGridState) { from, to ->
+        if (viewModel.searchQuery.isBlank()) {
+            viewModel.onBuildsReordered(from.index, to.index)
+        }
+    }
 
     Box(Modifier.fillMaxSize()) {
         Scaffold(
@@ -100,35 +110,46 @@ fun HomeScreen(
                             )
                     ) {
                         LazyVerticalGrid(
+                            state = lazyGridState,
                             columns = GridCells.Adaptive(minSize = 220.dp),
                             modifier = Modifier.fillMaxSize(),
                             contentPadding = PaddingValues(16.dp),
                             horizontalArrangement = Arrangement.spacedBy(16.dp),
                             verticalArrangement = Arrangement.spacedBy(16.dp)
                         ) {
-                            itemsIndexed(filteredBuilds, key = { _, build -> build.name }) { index, build ->
-                                AnimatedVisibility(
-                                    visible = build.name !in viewModel.buildsPendingDeletion,
-                                    exit = shrinkVertically(animationSpec = tween(durationMillis = 300)) + fadeOut(
-                                        animationSpec = tween(durationMillis = 250)
-                                    )
-                                ) {
-                                    AnimatedBuildCard(
-                                        build = build,
-                                        isRunning = build == viewModel.runningBuild,
-                                        isPreparing = build.name == viewModel.isLaunchingBuildId,
-                                        onLaunchClick = { viewModel.onLaunchClick(build) },
-                                        onOpenFolderClick = { viewModel.onOpenFolderClick(build) },
-                                        onSettingsClick = { expandedBuild = build },
-                                        onCardClick = { expandedBuild = build },
-                                        index = index,
-                                        modifier = Modifier.animateItem(
-                                            placementSpec = spring(
-                                                dampingRatio = Spring.DampingRatioLowBouncy,
-                                                stiffness = Spring.StiffnessMedium
-                                            )
+                            items(filteredBuilds, key = { it.name }) { build ->
+                                ReorderableItem(reorderableState, key = build.name) { isDragging ->
+                                    AnimatedVisibility(
+                                        visible = build.name !in viewModel.buildsPendingDeletion,
+                                        exit = shrinkVertically(animationSpec = tween(durationMillis = 300)) + fadeOut(
+                                            animationSpec = tween(durationMillis = 250)
                                         )
-                                    )
+                                    ) {
+                                        val interactionSource = remember { MutableInteractionSource() }
+                                        val dragModifier = if (viewModel.searchQuery.isBlank()) {
+                                            Modifier.draggableHandle(interactionSource = interactionSource)
+                                        } else {
+                                            Modifier
+                                        }
+                                        
+                                        AnimatedBuildCard(
+                                            build = build,
+                                            isRunning = build == viewModel.runningBuild,
+                                            isPreparing = build.name == viewModel.isLaunchingBuildId,
+                                            isDragging = isDragging,
+                                            onLaunchClick = { viewModel.onLaunchClick(build) },
+                                            onOpenFolderClick = { viewModel.onOpenFolderClick(build) },
+                                            onSettingsClick = { expandedBuild = build },
+                                            onCardClick = { expandedBuild = build },
+                                            index = filteredBuilds.indexOf(build),
+                                            modifier = Modifier.animateItem(
+                                                placementSpec = spring(
+                                                    dampingRatio = Spring.DampingRatioLowBouncy,
+                                                    stiffness = Spring.StiffnessMedium
+                                                )
+                                            ).then(dragModifier)
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -457,6 +478,7 @@ private fun AnimatedBuildCard(
     build: MinecraftBuild,
     isRunning: Boolean,
     isPreparing: Boolean,
+    isDragging: Boolean,
     onLaunchClick: () -> Unit,
     onOpenFolderClick: () -> Unit,
     onSettingsClick: () -> Unit,
@@ -494,6 +516,7 @@ private fun AnimatedBuildCard(
         build = build,
         isRunning = isRunning,
         isPreparing = isPreparing,
+        isDragging = isDragging,
         onLaunchClick = onLaunchClick,
         onOpenFolderClick = onOpenFolderClick,
         onSettingsClick = onSettingsClick,
@@ -513,6 +536,7 @@ private fun BuildCard(
     build: MinecraftBuild,
     isRunning: Boolean,
     isPreparing: Boolean,
+    isDragging: Boolean,
     onLaunchClick: () -> Unit,
     onOpenFolderClick: () -> Unit,
     onSettingsClick: () -> Unit,
@@ -528,6 +552,8 @@ private fun BuildCard(
         targetValue = if (isHovered) MaterialTheme.colorScheme.primary else Color.Transparent,
         animationSpec = tween(durationMillis = 200)
     )
+    
+    val elevation by animateDpAsState(if (isDragging) 16.dp else if (isHovered) 12.dp else 4.dp)
 
     Card(
         modifier = modifier
@@ -536,7 +562,7 @@ private fun BuildCard(
             .clickable(onClick = onCardClick),
         shape = RoundedCornerShape(16.dp),
         border = BorderStroke(2.dp, borderColor),
-        elevation = CardDefaults.cardElevation(defaultElevation = 4.dp, hoveredElevation = 12.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = elevation),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
     ) {
         Column(modifier = Modifier.fillMaxSize()) {

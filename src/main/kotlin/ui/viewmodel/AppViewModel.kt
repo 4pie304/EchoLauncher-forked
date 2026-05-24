@@ -314,6 +314,17 @@ class AppViewModel(
         }
     }
     
+    fun onBuildsReordered(from: Int, to: Int) {
+        buildList.apply {
+            add(to, removeAt(from))
+        }
+        viewModelScope.launch {
+            val reordered = buildList.mapIndexed { index, build -> build.copy(sortOrder = index) }
+            buildManager.reorderBuilds(reordered)
+            // No need to refresh from DB as we have the correct order locally
+        }
+    }
+
     fun onAccountSelected(account: Account) {
         currentAccount = account
         showAccountScreen = false

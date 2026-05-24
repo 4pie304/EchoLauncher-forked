@@ -82,6 +82,7 @@ dependencies {
     implementation("io.ktor:ktor-client-logging:2.3.13")
     implementation("org.apache.commons:commons-compress:1.26.2")
     implementation("org.apache.commons:commons-lang3:3.18.0")
+    implementation("sh.calvin.reorderable:reorderable:2.4.0")
 
     // Exposed for SQLite
     implementation("org.jetbrains.exposed:exposed-core:0.52.0")

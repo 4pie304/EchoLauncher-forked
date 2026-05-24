@@ -18,7 +18,7 @@ class BuildDao {
 
     fun getAll(): List<MinecraftBuild> {
         return transaction {
-            Builds.selectAll().map { toBuild(it) }
+            Builds.selectAll().orderBy(Builds.sortOrder to SortOrder.ASC).map { toBuild(it) }
         }
     }
 
@@ -36,6 +36,7 @@ class BuildDao {
                 it[maxRamMb] = build.maxRamMb
                 it[javaArgs] = build.javaArgs
                 it[envVars] = build.envVars
+                it[sortOrder] = build.sortOrder
             }
         }
     }
@@ -53,6 +54,7 @@ class BuildDao {
                 it[maxRamMb] = build.maxRamMb
                 it[javaArgs] = build.javaArgs
                 it[envVars] = build.envVars
+                it[sortOrder] = build.sortOrder
             }
         }
     }
@@ -71,6 +73,17 @@ class BuildDao {
                 it[maxRamMb] = build.maxRamMb
                 it[javaArgs] = build.javaArgs
                 it[envVars] = build.envVars
+                it[sortOrder] = build.sortOrder
+            }
+        }
+    }
+
+    fun updateOrder(builds: List<MinecraftBuild>) {
+        transaction {
+            builds.forEachIndexed { index, build ->
+                Builds.update({ Builds.name eq build.name }) {
+                    it[sortOrder] = index
+                }
             }
         }
     }
@@ -99,7 +112,8 @@ class BuildDao {
             javaPath = row[Builds.javaPath],
             maxRamMb = row[Builds.maxRamMb],
             javaArgs = row[Builds.javaArgs],
-            envVars = row[Builds.envVars]
+            envVars = row[Builds.envVars],
+            sortOrder = row[Builds.sortOrder]
         )
     }
 }

@@ -31,7 +31,8 @@ data class MinecraftBuild(
     val maxRamMb: Int? = null,
     val javaArgs: String? = null,
     val envVars: String? = null,
-    val modloaderVersion: String? = null
+    val modloaderVersion: String? = null,
+    val sortOrder: Int = 0
 )
 
 @Serializable
