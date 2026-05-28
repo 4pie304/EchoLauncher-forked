@@ -43,6 +43,7 @@ data class AppSettings(
     val envVars: String = "",
     val javaPath: String = "",
     val showConsoleOnLaunch: Boolean = false,
+    val useBorderlessWindow: Boolean = true,
     val language: String = "ru"
 )
 

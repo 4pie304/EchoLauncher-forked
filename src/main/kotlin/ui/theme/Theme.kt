@@ -1,5 +1,8 @@
 package ui.theme
 
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
@@ -8,15 +11,15 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import funlauncher.Theme
+import org.chokopieum.software.materia_launcher.generated.resources.*
+import org.jetbrains.compose.resources.painterResource
 
-/**
- * Компонент, который применяет выбранную цветовую схему с анимацией и градиентным фоном.
- * @param theme Выбранная тема оформления.
- * @param content Содержимое, к которому применяется тема.
- */
 @Composable
 fun AnimatedAppTheme(
     theme: Theme,
@@ -35,21 +38,48 @@ fun AnimatedAppTheme(
         lightColorScheme()
     }
 
-    val gradientBrush = if (useDarkTheme) {
-        Brush.verticalGradient(listOf(DarkGradientStart, DarkGradientEnd))
-    } else {
-        Brush.verticalGradient(listOf(LightGradientStart, LightGradientEnd))
-    }
+    val animationSpec = tween<Color>(durationMillis = 500)
+
+    val topColor by animateColorAsState(
+        targetValue = if (useDarkTheme) DarkGradientStart else LightGradientStart,
+        animationSpec = animationSpec,
+        label = "TopGradientColor"
+    )
+
+    val middleColor by animateColorAsState(
+        targetValue = if (useDarkTheme) Color(0xFF11161C) else Color(0xFFF7F8FA),
+        animationSpec = animationSpec,
+        label = "MiddleGradientColor"
+    )
+
+    val bottomColor by animateColorAsState(
+        targetValue = if (useDarkTheme) DarkGradientEnd else LightGradientEnd,
+        animationSpec = animationSpec,
+        label = "BottomGradientColor"
+    )
+
+    val gradientBrush = Brush.verticalGradient(
+        listOf(topColor, middleColor, bottomColor)
+    )
 
     MaterialTheme(
         colorScheme = colors
     ) {
         Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .background(gradientBrush)
+            modifier = Modifier.fillMaxSize()
         ) {
+            if (useDarkTheme) {
+                Image(
+                    painter = painterResource(Res.drawable.background_dark),
+                    contentDescription = "Background",
+                    modifier = Modifier.fillMaxSize(),
+                    contentScale = ContentScale.Crop
+                )
+            } else {
+                Box(modifier = Modifier.fillMaxSize().background(gradientBrush))
+            }
             content()
         }
     }
+
 }

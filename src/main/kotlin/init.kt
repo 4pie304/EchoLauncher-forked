@@ -5,11 +5,16 @@
  * Распространяется по лицензии MIT.
  * GITHUB: https://github.com/Chokopieum-Software/MateriaKraft-Launcher
  */
+import org.jetbrains.jewel.foundation.theme.JewelTheme
+import org.jetbrains.jewel.intui.standalone.theme.darkThemeDefinition
+import org.jetbrains.jewel.intui.standalone.theme.lightThemeDefinition
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.key.*
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Window
 import androidx.compose.ui.window.WindowPosition
 import androidx.compose.ui.window.application
 import androidx.compose.ui.window.rememberWindowState
@@ -28,7 +33,6 @@ import kotlinx.coroutines.*
 import org.chokopieum.software.materia_launcher.generated.resources.*
 import org.jetbrains.compose.resources.ExperimentalResourceApi
 import org.jetbrains.compose.resources.painterResource
-import org.jetbrains.compose.resources.stringResource
 import splash.createAndShowSplashScreen
 import state.AppState
 import state.Screen
@@ -37,6 +41,10 @@ import ui.screens.wizard.FirstRunWizard
 import ui.theme.AnimatedAppTheme
 import ui.viewmodel.AppViewModel
 import ui.widgets.ImageLoader
+import org.jetbrains.jewel.intui.standalone.theme.IntUiTheme
+import org.jetbrains.jewel.ui.component.Text
+import org.jetbrains.jewel.window.DecoratedWindow
+import org.jetbrains.jewel.window.TitleBar
 import java.time.Month
 import java.time.OffsetDateTime
 import java.util.*
@@ -45,6 +53,11 @@ import javax.swing.SwingUtilities
 import kotlin.system.exitProcess
 import java.io.File
 import javax.swing.JOptionPane
+import androidx.compose.foundation.isSystemInDarkTheme
+import funlauncher.SettingsManager
+import funlauncher.Theme
+import org.jetbrains.jewel.ui.ComponentStyling
+import org.jetbrains.jewel.intui.window.decoratedWindow
 
 // Флаг, указывающий, что основной контент готов к отображению (используется для скрытия сплеш-скрина).
 var isContentReady by mutableStateOf(false)
@@ -218,75 +231,25 @@ private fun runApplication(isUiTest: Boolean) {
             is Screen.Splash -> { /* Do nothing, splash is already shown */ }
             is Screen.FirstRunWizard -> {
                 var wizardTheme by remember { mutableStateOf(Theme.Dark) }
-                Window(
-                    onCloseRequest = {
-                        scope.launch {
-                            globalModrinthApi.close()
-                            exitApplication()
-                        }
-                    },
-                    title = "Materia - Мастер настройки",
-                    visible = isContentReady,
-                    icon = icon,
-                    state = rememberWindowState(width = 600.dp, height = 700.dp, position = WindowPosition(Alignment.Center)),
-                    onKeyEvent = {
-                        if (it.isCtrlPressed && it.key == Key.Grave && it.type == KeyEventType.KeyDown) {
-                            LogCollector.saveLogsToDesktop()
-                            true
-                        } else {
-                            false
-                        }
-                    }
-                ) {
-                    AnimatedAppTheme(wizardTheme) {
-                        FirstRunWizard(
-                            accountManager = globalAccountManager,
-                            initialTheme = wizardTheme,
-                            onThemeChange = { wizardTheme = it },
-                            onWizardComplete = { newSettings ->
-                                scope.launch(Dispatchers.IO) {
-                                    globalSettingsManager.saveSettings(newSettings)
-                                    // Устанавливаем флаг в false, чтобы при следующем Splash перейти к MainApp
-                                    showFirstRunWizard = false
-                                    withContext(Dispatchers.Main) {
-                                        currentScreen = Screen.Splash
-                                    }
-                                }
-                            }
-                        )
-                        SideEffect { if (!isContentReady) isContentReady = true }
-                    }
+                val isDarkTheme = when (wizardTheme) {
+                    Theme.Light -> false
+                    Theme.Dark -> true
+                    Theme.System -> false // Fallback
                 }
-            }
-            is Screen.MainApp -> {
-                appState?.let { state ->
-                    val viewModel = remember {
-                        AppViewModel(
-                            appState = state,
-                            buildManager = globalBuildManager,
-                            javaManager = globalJavaManager,
-                            accountManager = globalAccountManager,
-                            javaDownloader = globalJavaDownloader,
-                            versionMetadataFetcher = globalVersionMetadataFetcher,
-                            onSettingsChange = { newSettings ->
-                                appState = state.copy(settings = newSettings)
-                                scope.launch { globalSettingsManager.saveSettings(newSettings) }
-                            }
-                        )
-                    }
+                val themeDefinition = if (isDarkTheme) JewelTheme.darkThemeDefinition() else JewelTheme.lightThemeDefinition()
 
-                    Window(
+                IntUiTheme(theme = themeDefinition, styling = ComponentStyling.decoratedWindow(), swingCompatMode = true) {
+                    DecoratedWindow(
                         onCloseRequest = {
                             scope.launch {
-                                viewModel.cancelScope()
                                 globalModrinthApi.close()
                                 exitApplication()
                             }
                         },
-                        title = stringResource(Res.string.app_name),
+                        title = "Materia - Мастер настройки",
                         visible = isContentReady,
                         icon = icon,
-                        state = rememberWindowState(width = 1024.dp, height = 768.dp),
+                        state = rememberWindowState(width = 600.dp, height = 700.dp, position = WindowPosition(Alignment.Center)),
                         onKeyEvent = {
                             if (it.isCtrlPressed && it.key == Key.Grave && it.type == KeyEventType.KeyDown) {
                                 LogCollector.saveLogsToDesktop()
@@ -296,18 +259,97 @@ private fun runApplication(isUiTest: Boolean) {
                             }
                         }
                     ) {
-                        App(
-                            viewModel = viewModel,
-                            appState = state,
-                            pathManager = globalPathManager,
-                            cacheManager = globalCacheManager
-                        )
-                        SideEffect {
-                            if (!isContentReady) {
-                                isContentReady = true
-                                if (isUiTest) {
-                                    println("MATERIAKRAFT_LAUNCHER_UI_TEST_SUCCESS")
-                                 }
+                        TitleBar {
+                            Text("Materia - Мастер настройки")
+                        }
+                        AnimatedAppTheme(wizardTheme) {
+                            FirstRunWizard(
+                                accountManager = globalAccountManager,
+                                initialTheme = wizardTheme,
+                                onThemeChange = { wizardTheme = it },
+                                onWizardComplete = { newSettings ->
+                                    scope.launch(Dispatchers.IO) {
+                                        globalSettingsManager.saveSettings(newSettings)
+                                        showFirstRunWizard = false
+                                        withContext(Dispatchers.Main) {
+                                            currentScreen = Screen.Splash
+                                        }
+                                    }
+                                }
+                            )
+                            SideEffect { if (!isContentReady) isContentReady = true }
+                        }
+                    }
+                }
+            }
+            is Screen.MainApp -> {
+                val state = (currentScreen as Screen.MainApp).state
+                val viewModel = remember {
+                    AppViewModel(
+                        appState = state,
+                        buildManager = globalBuildManager,
+                        accountManager = globalAccountManager,
+                        javaManager = globalJavaManager,
+                        javaDownloader = globalJavaDownloader,
+                        versionMetadataFetcher = globalVersionMetadataFetcher,
+                        onSettingsChange = { newSettings ->
+                            scope.launch {
+                                globalSettingsManager.saveSettings(newSettings)
+                                appState = appState?.copy(settings = newSettings)
+                            }
+                        }
+                    )
+                }
+
+                val currentAppState = appState ?: return@application
+                val settings = currentAppState.settings
+
+                val isDarkTheme = when (settings.theme) {
+                    Theme.Light -> false
+                    Theme.Dark -> true
+                    Theme.System -> isSystemInDarkTheme()
+                }
+                val themeDefinition = if (isDarkTheme) {
+                    JewelTheme.darkThemeDefinition()
+                } else {
+                    JewelTheme.lightThemeDefinition()
+                }
+
+                IntUiTheme(theme = themeDefinition, styling = ComponentStyling.decoratedWindow(), swingCompatMode = true) {
+                    DecoratedWindow(
+                        onCloseRequest = {
+                            scope.launch {
+                                viewModel.cancelScope()
+                                exitApplication()
+                            }
+                        },
+                        title = "Materia",
+                        visible = isContentReady,
+                        icon = icon,
+                        state = rememberWindowState(width = 1200.dp, height = 800.dp, position = WindowPosition(Alignment.Center)),
+                        onKeyEvent = {
+                            if (it.isCtrlPressed && it.key == Key.Grave && it.type == KeyEventType.KeyDown) {
+                                LogCollector.saveLogsToDesktop()
+                                true
+                            } else {
+                                false
+                            }
+                        }
+                    ) {
+                        TitleBar {
+                            Text("Materia")
+                        }
+                        AnimatedAppTheme(settings.theme) {
+                            Box(modifier = Modifier.fillMaxSize()) {
+                                App(
+                                    viewModel = viewModel,
+                                    appState = currentAppState,
+                                    pathManager = globalPathManager,
+                                    cacheManager = globalCacheManager
+                                )
+                                SideEffect {
+                                    if (!isContentReady) isContentReady = true
+                                }
                             }
                         }
                     }

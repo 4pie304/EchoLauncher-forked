@@ -53,18 +53,19 @@ val gitHash = fetchGitHash()
 group = "org.chokopieum.software"
 version = appVersion
 
-repositories {
-    mavenCentral()
-    google()
-    maven("https://maven.pkg.jetbrains.space/public/p/compose/dev")
-}
-
 dependencies {
     implementation(project(":core"))
     implementation(compose.desktop.currentOs)
     implementation(compose.components.resources)
     implementation(compose.materialIconsExtended)
     implementation(compose.material3)
+
+    // Jewel for custom window decorations
+    implementation("org.jetbrains.jewel:jewel-foundation:0.37.0-262.4852.51")
+    implementation("org.jetbrains.jewel:jewel-int-ui-standalone:0.37.0-262.4852.51")
+    implementation("org.jetbrains.jewel:jewel-decorated-window:0.37.0-262.4852.51")
+    implementation("org.jetbrains.jewel:jewel-int-ui-decorated-window:0.37.0-262.4852.51")
+
     implementation("org.jetbrains.compose.components:components-resources:1.10.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.10.2")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-swing:1.10.2")
@@ -92,7 +93,7 @@ dependencies {
 }
 
 kotlin {
-    jvmToolchain(21)
+    jvmToolchain(25)
 }
 
 compose.desktop {

@@ -112,24 +112,35 @@ fun SettingsTab(
     val accountViewModel = remember { AccountViewModel(accountManager, coroutineScope) }
 
     Row(modifier = Modifier.fillMaxSize()) {
-        NavigationRail(
-            modifier = Modifier.fillMaxHeight().padding(end = 16.dp),
-            header = {
-                Text(
-                    "Настройки",
-                    style = MaterialTheme.typography.headlineMedium,
-                    modifier = Modifier.padding(16.dp)
-                )
-            }
+        Column(
+            modifier = Modifier.fillMaxHeight().width(200.dp).padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
+            Text(
+                "Настройки",
+                style = MaterialTheme.typography.headlineMedium,
+                modifier = Modifier.padding(bottom = 16.dp),
+                color = MaterialTheme.colorScheme.primary
+            )
             SettingsSection.values().forEach { section ->
-                NavigationRailItem(
-                    selected = currentSection == section,
+                val isSelected = currentSection == section
+                TextButton(
                     onClick = { currentSection = section },
-                    icon = { Icon(section.icon, contentDescription = section.title) },
-                    label = { Text(section.title) },
-                    alwaysShowLabel = false
-                )
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                    )
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Start
+                    ) {
+                        Icon(section.icon, contentDescription = section.title)
+                        Spacer(Modifier.width(16.dp))
+                        Text(section.title)
+                    }
+                }
             }
         }
 
@@ -224,6 +235,23 @@ private fun AppearanceSettings(
                             )
                         }
                     }
+                }
+            }
+        }
+        OutlinedCard(modifier = Modifier.fillMaxWidth()) {
+            Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Без системной рамки (требуется перезапуск)", modifier = Modifier.weight(1f))
+                    Switch(
+                        checked = currentSettings.useBorderlessWindow,
+                        onCheckedChange = {
+                            onSave(currentSettings.copy(useBorderlessWindow = it))
+                            showRestartDialog = true
+                        }
+                    )
                 }
             }
         }
