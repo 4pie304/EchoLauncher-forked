@@ -17,6 +17,8 @@ import io.ktor.client.engine.cio.*
 import io.ktor.client.plugins.*
 import io.ktor.client.plugins.contentnegotiation.*
 import io.ktor.client.request.*
+import io.ktor.client.statement.*
+import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*
 import io.ktor.utils.io.*
 import kotlinx.coroutines.Dispatchers
@@ -189,8 +191,15 @@ class JavaDownloader(
 
     private suspend fun downloadFile(url: String, path: Path, onProgress: (Float, String) -> Unit) {
         client.prepareGet(url).execute { httpResponse ->
+            if (httpResponse.status.value == 520) {
+                throw Exception("Ошибка 520: Веб-сервер вернул неизвестную ошибку. Возможно, CDN не может связаться с сервером Azul.")
+            }
+            if (!httpResponse.status.isSuccess()) {
+                throw Exception("Ошибка загрузки: ${httpResponse.status}")
+            }
+
             val channel: ByteReadChannel = httpResponse.body()
-            val totalBytes = httpResponse.headers["Content-Length"]?.toLongOrNull() ?: 0L
+            val totalBytes = httpResponse.headers[HttpHeaders.ContentLength]?.toLongOrNull() ?: 0L
             var bytesRead = 0L
 
             FileOutputStream(path.toFile()).use { output ->
