@@ -76,17 +76,6 @@ fun HomeScreen(
 
     Box(Modifier.fillMaxSize()) {
         Scaffold(
-            topBar = {
-                AnimatedVisibility(visible = expandedBuild == null) {
-                    HomeTopAppBar(
-                        searchQuery = viewModel.searchQuery,
-                        onSearchQueryChange = viewModel::onSearchQueryChanged,
-                        onAddBuildClick = viewModel::onAddBuildClick,
-                        onOpenAccountManager = viewModel::onOpenAccountManager,
-                        viewModel = viewModel
-                    )
-                }
-            },
             containerColor = Color.Transparent
         ) { paddingValues ->
             AnimatedVisibility(
@@ -275,50 +264,31 @@ fun ExpandedBuildScreenWrapper(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun HomeTopAppBar(
-    searchQuery: String,
-    onSearchQueryChange: (String) -> Unit,
-    onAddBuildClick: () -> Unit,
-    onOpenAccountManager: () -> Unit,
+fun TitleBarActions(
     viewModel: HomeViewModel
 ) {
-    TopAppBar(
-        title = {
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                // Аватар слева
-                IconButton(onClick = onOpenAccountManager) {
-                    AvatarImage(
-                        account = viewModel.currentAccount,
-                        modifier = Modifier.size(40.dp).clip(SquircleShape)
-                    )
-                }
-            }
-        },
-        actions = {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                // Поисковая строка
-                ExpandableSearchBar(
-                    searchQuery = searchQuery,
-                    onSearchQueryChange = onSearchQueryChange
-                )
-
-                FilledTonalButton(onClick = onAddBuildClick) {
-                    Text("Добавить")
-                }
-            }
-        },
-        colors = TopAppBarDefaults.topAppBarColors(
-            containerColor = Color.Transparent
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(16.dp)
+    ) {
+        // Аватар слева
+        IconButton(onClick = viewModel::onOpenAccountManager) {
+            AvatarImage(
+                account = viewModel.currentAccount,
+                modifier = Modifier.size(40.dp).clip(SquircleShape)
+            )
+        }
+        // Поисковая строка
+        ExpandableSearchBar(
+            searchQuery = viewModel.searchQuery,
+            onSearchQueryChange = viewModel::onSearchQueryChanged
         )
-    )
+
+        FilledTonalButton(onClick = viewModel::onAddBuildClick) {
+            Text("Добавить")
+        }
+    }
 }
 
 @Composable

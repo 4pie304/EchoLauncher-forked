@@ -1,10 +1,14 @@
+/*
+ * Copyright 2025 Chokopieum Software
+ *
+ * НЕ ЯВЛЯЕТСЯ ОФИЦИАЛЬНЫМ ПРОДУКТОМ MINECRAFT. НЕ ОДОБРЕНО И НЕ СВЯЗАНО С КОМПАНИЕЙ MOJANG ИЛИ MICROSOFT.
+ * Распространяется по лицензии MIT.
+ * GITHUB: https://github.com/Chokopieum-Software/MateriaKraft-Launcher
+ */
+
 package ui.viewmodel
 
-import androidx.compose.runtime.derivedStateOf
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateListOf
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.*
 import com.sun.management.OperatingSystemMXBean
 import funlauncher.*
 import funlauncher.auth.Account
@@ -14,7 +18,16 @@ import funlauncher.game.VersionMetadataFetcher
 import funlauncher.managers.BuildManager
 import funlauncher.managers.JavaManager
 import funlauncher.net.JavaDownloader
-import kotlinx.coroutines.*
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import org.slf4j.LoggerFactory
 import state.AppState
 import ui.AppTab
 import java.lang.management.ManagementFactory
@@ -28,6 +41,7 @@ class AppViewModel(
     val versionMetadataFetcher: VersionMetadataFetcher,
     private val onSettingsChange: (AppSettings) -> Unit
 ) {
+    private val logger = LoggerFactory.getLogger(javaClass)
     val viewModelScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
     // --- UI State ---
@@ -49,73 +63,61 @@ class AppViewModel(
     var buildToDelete by mutableStateOf<MinecraftBuild?>(null)
     var showGameConsole by mutableStateOf(false)
     var showRamWarningDialog by mutableStateOf<MinecraftBuild?>(null)
-
-    var isLaunchingBuildId by mutableStateOf<String?>(null)
     var showCheckmark by mutableStateOf(false)
-
-    // Added runningBuild property to fix the error in HomeViewModel
+    var isLaunchingBuildId by mutableStateOf<String?>(null)
     var runningBuild by mutableStateOf<MinecraftBuild?>(null)
-    
-    // Store reference to running process
-    private var runningProcess: Process? = null
-
-    // Test Build states
     var showTestBuildWarning by mutableStateOf(false)
-    var testBuildMessage by mutableStateOf<String?>(null)
     var testBuildTitle by mutableStateOf<String?>(null)
+    var testBuildMessage by mutableStateOf<String?>(null)
+    
+    private var runningProcess by mutableStateOf<Process?>(null)
+    val gameOutput = MutableSharedFlow<String>(extraBufferCapacity = 1000)
 
     init {
-        synchronizeBuilds()
-        checkTestBuild()
+        accountManager.accountsFlow
+            .onEach { updatedAccounts ->
+                accounts = updatedAccounts
+                if (currentAccount == null || currentAccount !in updatedAccounts) {
+                    currentAccount = updatedAccounts.firstOrNull()
+                }
+            }
+            .launchIn(viewModelScope)
     }
 
-    private fun checkTestBuild() {
-        viewModelScope.launch {
-            val props = java.util.Properties()
-            try {
-                this@AppViewModel.javaClass.classLoader.getResourceAsStream("app.properties")?.use { stream ->
-                    props.load(stream)
-                }
-            } catch (e: Exception) {
-                // ignore
-            }
-            
-            val isTestBuild = props.getProperty("isTestBuild", "false").toBoolean()
-            if (isTestBuild) {
-                val currentHash = props.getProperty("gitHash", "")
-                val latestHash = withContext(Dispatchers.IO) { funlauncher.net.GithubChecker.getLatestCommitHash() }
-                
-                if (latestHash != null && currentHash.isNotEmpty() && latestHash != currentHash) {
-                    testBuildTitle = "Внимание: Устаревшая сборка"
-                    testBuildMessage = "Эта тестовая сборка устарела.\nНа GitHub найден более новый коммит ($latestHash).\nВаш коммит ($currentHash).\n\nПожалуйста, попросите новый установщик у человека, от которого вы получили этот файл."
-                } else {
-                    testBuildTitle = "Тестовая сборка"
-                    testBuildMessage = "Данная сборка была скомпилирована из ветки разработки и может содержать ошибки.\nПожалуйста, сообщайте об ошибках разработчику.\n\nНажмите Ctrl + ` для сохранения логов на рабочий стол."
-                }
-                showTestBuildWarning = true
-            }
-        }
-    }
-
-    private fun synchronizeBuilds() {
-        viewModelScope.launch {
-            val (synchronizedBuilds, newCount) = withContext(Dispatchers.IO) {
-                buildManager.synchronizeBuilds()
-            }
-            if (synchronizedBuilds.size != buildList.size || synchronizedBuilds != buildList) {
-                buildList.clear()
-                buildList.addAll(synchronizedBuilds)
-            }
-        }
+    fun onSettingsChanged(newSettings: AppSettings) {
+        onSettingsChange(newSettings)
     }
 
     fun refreshBuilds() {
-        viewModelScope.launch {
-            val freshBuilds = withContext(Dispatchers.IO) {
-                buildManager.loadBuilds()
+        viewModelScope.launch(Dispatchers.IO) {
+            val updatedBuilds = buildManager.loadBuilds()
+            withContext(Dispatchers.Main) {
+                buildList.clear()
+                buildList.addAll(updatedBuilds)
             }
-            buildList.clear()
-            buildList.addAll(freshBuilds)
+        }
+    }
+
+    fun cancelScope() {
+        viewModelScope.cancel()
+        runningProcess?.destroy()
+    }
+
+    private fun stopGame() {
+        runningProcess?.destroy()
+        runningProcess = null
+        runningBuild = null
+        daemonStatus = "STOPPED"
+    }
+
+    private suspend fun attachToProcess(process: Process) {
+        withContext(Dispatchers.IO) {
+            process.inputStream.bufferedReader().useLines { lines ->
+                lines.forEach { line ->
+                    logger.info("[Minecraft] $line") // Логируем в консоль IDE/терминала
+                    gameOutput.tryEmit(line) // Используем tryEmit чтобы не блокироваться
+                }
+            }
         }
     }
 
@@ -127,7 +129,7 @@ class AppViewModel(
             val installer = MinecraftInstaller(build, buildManager)
             val finalMaxRam = build.maxRamMb ?: appState.settings.maxRamMb
             val finalJavaArgs = build.javaArgs ?: appState.settings.javaArgs
-            val finalEnvVars = build.envVars ?: appState.settings.envVars
+            val finalEnvVars = build.envVars ?: appState.settings.envVars ?: ""
 
             // When launching directly, we might want to set status manually
             daemonStatus = "RUNNING"
@@ -142,23 +144,27 @@ class AppViewModel(
                     envVars = finalEnvVars
                 )
                 
+                runningProcess?.let { attachToProcess(it) }
+                
                 // Wait for process to exit
-                runningProcess?.waitFor()
+                val exitCode = runningProcess?.waitFor() ?: -1
+                logger.info("Minecraft process exited with code $exitCode")
                 
                 withContext(Dispatchers.Main) {
                     isLaunchingBuildId = null
                     runningBuild = null
                     daemonStatus = "STOPPED"
-                    runningProcess = null
+                    showGameConsole = false
                 }
             }
-        }.onFailure { e ->
-            e.printStackTrace()
-            errorDialogMessage = "Ошибка запуска: ${e.message}"
-            isLaunchingBuildId = null
-            runningBuild = null
-            daemonStatus = "STOPPED"
-            runningProcess = null
+        }.onFailure {
+            logger.error("Error during launch", it)
+            withContext(Dispatchers.Main) {
+                errorDialogMessage = it.message ?: "Неизвестная ошибка при запуске."
+                isLaunchingBuildId = null
+                runningBuild = null
+                daemonStatus = "STOPPED"
+            }
         }
     }
 
@@ -192,19 +198,18 @@ class AppViewModel(
                     // 3. Если ничего не нашли, качаем рекомендованную
                     javaDownloader.downloadAndUnpack(recommendedVersion) { result ->
                         viewModelScope.launch {
-                            result.fold(
-                                onSuccess = { downloadedJava -> launchMinecraft(build, downloadedJava.path, account) },
-                                onFailure = {
-                                    errorDialogMessage = "Не удалось скачать Java: ${it.message}"
-                                    isLaunchingBuildId = null
-                                }
-                            )
+                            if (result.isSuccess) {
+                                launchMinecraft(build, result.getOrThrow().path, account)
+                            } else {
+                                errorDialogMessage = "Не удалось найти или скачать Java ${recommendedVersion}. Укажите путь вручную."
+                                isLaunchingBuildId = null
+                            }
                         }
                     }
                 }
             } else {
-                val finalJavaPath = build.javaPath ?: appState.settings.javaPath
-                launchMinecraft(build, finalJavaPath, account)
+                val javaPath = build.javaPath ?: appState.settings.javaPath
+                launchMinecraft(build, javaPath, account)
             }
         }
     }
@@ -234,94 +239,45 @@ class AppViewModel(
             performLaunch(build)
         }
     }
-    
-    fun stopGame() {
-        runningProcess?.let {
-            if (it.isAlive) {
-                it.destroy()
-                // Force kill if it doesn't stop gracefully
-                viewModelScope.launch(Dispatchers.IO) {
-                    delay(3000)
-                    if (it.isAlive) {
-                        it.destroyForcibly()
-                    }
-                }
-            }
-        }
-        daemonStatus = "STOPPED"
-        runningBuild = null
-        isLaunchingBuildId = null
-        runningProcess = null
-    }
-
-    fun onConfirmRamWarning(build: MinecraftBuild) {
-        showRamWarningDialog = null
-        performLaunch(build)
-    }
-
-    fun onDeleteBuildClick(build: MinecraftBuild) {
-        buildToDelete = build
-    }
-
-    fun onConfirmDelete(build: MinecraftBuild) {
-        viewModelScope.launch {
-            buildsPendingDeletion.add(build.name)
-            buildToDelete = null
-            delay(400)
-            withContext(Dispatchers.IO) { buildManager.deleteBuild(build.name) }
-            buildList.removeIf { it.name == build.name }
-            buildsPendingDeletion.remove(build.name)
-        }
-    }
 
     fun onAddBuild(name: String, version: String, type: String, imagePath: String?) {
-        viewModelScope.launch {
-            runCatching {
-                val buildType = BuildType.valueOf(type)
-                withContext(Dispatchers.IO) { buildManager.addBuild(name, version, buildType, imagePath) }
+        viewModelScope.launch(Dispatchers.IO) {
+            buildManager.addBuild(name, version, BuildType.valueOf(type), imagePath)
+            withContext(Dispatchers.Main) {
                 refreshBuilds()
                 showAddBuildDialog = false
-            }.onFailure { e ->
-                errorDialogMessage = e.message
             }
         }
     }
 
-    fun onSaveBuildSettings(newName: String, newVersion: String, newType: String, newImagePath: String?, javaPath: String?, maxRam: Int?, javaArgs: String?, envVars: String?) {
-        viewModelScope.launch {
-            runCatching {
-                val buildType = BuildType.valueOf(newType)
-                showBuildSettingsScreen?.let {
-                    withContext(Dispatchers.IO) {
-                        buildManager.updateBuildSettings(
-                            oldName = it.name,
-                            newName = newName,
-                            newVersion = newVersion,
-                            newType = buildType,
-                            newImagePath = newImagePath,
-                            newJavaPath = javaPath,
-                            newMaxRam = maxRam,
-                            newJavaArgs = javaArgs,
-                            newEnvVars = envVars
-                        )
-                    }
+    fun onSaveBuildSettings(
+        newName: String,
+        newVersion: String,
+        newType: BuildType,
+        newImagePath: String?,
+        javaPath: String?,
+        maxRam: Int?,
+        javaArgs: String?,
+        envVars: String?
+    ) {
+        showBuildSettingsScreen?.let { build ->
+            viewModelScope.launch(Dispatchers.IO) {
+                buildManager.updateBuildSettings(
+                    oldName = build.name,
+                    newName = newName,
+                    newVersion = newVersion,
+                    newType = newType,
+                    newImagePath = newImagePath,
+                    newJavaPath = javaPath,
+                    newMaxRam = maxRam,
+                    newJavaArgs = javaArgs,
+                    newEnvVars = envVars
+                )
+                withContext(Dispatchers.Main) {
+                    refreshBuilds()
+                    showBuildSettingsScreen = null
                 }
-                refreshBuilds()
-                showBuildSettingsScreen = null
-            }.onFailure { e ->
-                errorDialogMessage = e.message
             }
-        }
-    }
-    
-    fun onBuildsReordered(from: Int, to: Int) {
-        buildList.apply {
-            add(to, removeAt(from))
-        }
-        viewModelScope.launch {
-            val reordered = buildList.mapIndexed { index, build -> build.copy(sortOrder = index) }
-            buildManager.reorderBuilds(reordered)
-            // No need to refresh from DB as we have the correct order locally
         }
     }
 
@@ -330,11 +286,40 @@ class AppViewModel(
         showAccountScreen = false
     }
 
-    fun onSettingsChanged(newSettings: AppSettings) {
-        onSettingsChange(newSettings)
+    fun onConfirmRamWarning(build: MinecraftBuild) {
+        showRamWarningDialog = null
+        performLaunch(build)
     }
 
-    fun cancelScope() {
-        viewModelScope.cancel()
+    fun onConfirmDelete(build: MinecraftBuild) {
+        buildsPendingDeletion.add(build.name)
+        viewModelScope.launch(Dispatchers.IO) {
+            buildManager.deleteBuild(build.name)
+            withContext(Dispatchers.Main) {
+                buildList.remove(build)
+                buildsPendingDeletion.remove(build.name)
+                buildToDelete = null
+            }
+        }
+    }
+
+    fun onDeleteBuildClick(build: MinecraftBuild) {
+        buildToDelete = build
+    }
+
+    fun onBuildsReordered(from: Int, to: Int) {
+        if (from == to) return
+        val currentBuilds = buildList.toList()
+        val mutableBuilds = currentBuilds.toMutableList()
+        val item = mutableBuilds.removeAt(from)
+        mutableBuilds.add(to, item)
+
+        buildList.clear()
+        buildList.addAll(mutableBuilds)
+
+        // Save order to DB
+        viewModelScope.launch(Dispatchers.IO) {
+            buildManager.reorderBuilds(mutableBuilds)
+        }
     }
 }

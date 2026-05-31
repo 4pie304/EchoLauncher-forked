@@ -10,6 +10,9 @@ package funlauncher.auth
 
 import funlauncher.database.dao.AccountDao
 import funlauncher.managers.PathManager
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.serialization.SerializationException
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.modules.SerializersModule
@@ -18,11 +21,12 @@ import kotlinx.serialization.modules.subclass
 
 class AccountManager(pathManager: PathManager) {
     private val accountDao = AccountDao()
-    private var accounts: MutableList<Account> = mutableListOf()
+    private var _accounts = MutableStateFlow<List<Account>>(emptyList())
+    val accountsFlow: StateFlow<List<Account>> = _accounts.asStateFlow()
 
     init {
         migrateFromJson(pathManager)
-        accounts = accountDao.getAll().toMutableList()
+        _accounts.value = accountDao.getAll()
     }
 
     private fun migrateFromJson(pathManager: PathManager) {
@@ -68,13 +72,14 @@ class AccountManager(pathManager: PathManager) {
     }
 
     fun loadAccounts(): List<Account> {
-        accounts = accountDao.getAll().toMutableList()
-        println("--- Загрузка аккаунтов из БД, найдено ${accounts.size} ---")
-        return accounts
+        val loaded = accountDao.getAll()
+        _accounts.value = loaded
+        println("--- Загрузка аккаунтов из БД, найдено ${loaded.size} ---")
+        return loaded
     }
 
     fun hasLicensedAccount(): Boolean {
-        return accounts.any { it.isLicensed }
+        return _accounts.value.any { it.isLicensed }
     }
 
     fun addAccount(account: Account): Boolean {
@@ -84,7 +89,7 @@ class AccountManager(pathManager: PathManager) {
         }
 
         accountDao.add(account)
-        accounts.add(account)
+        _accounts.value = accountDao.getAll()
         return true
     }
 
@@ -121,15 +126,15 @@ class AccountManager(pathManager: PathManager) {
         authenticator.logout()
 
         accountDao.deleteAllMicrosoft()
-        accounts.removeIf { it is MicrosoftAccount }
+        _accounts.value = accountDao.getAll()
     }
 
     fun deleteAccount(account: Account) {
         accountDao.delete(account)
-        accounts.remove(account)
+        _accounts.value = accountDao.getAll()
     }
 
     fun getAccounts(): List<Account> {
-        return accounts
+        return _accounts.value
     }
 }

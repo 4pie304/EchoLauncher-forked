@@ -77,7 +77,7 @@ class VersionMetadataFetcher(private val buildManager: BuildManager, private val
             BuildType.FORGE -> fetchForgeProfile(build, task)
             BuildType.QUILT -> fetchQuiltProfile(build, task)
             BuildType.NEOFORGE -> fetchNeoForgeProfile(build, task)
-            BuildType.VANILLA -> fetchVanillaVersionInfo(build.version, task)
+            BuildType.VANILLA -> fetchAndInheritVanillaInfo(build.version, task)
         }
 
         // 4. Обработка для Linux ARM
@@ -162,7 +162,7 @@ class VersionMetadataFetcher(private val buildManager: BuildManager, private val
     private suspend fun fetchFabricProfile(build: MinecraftBuild, task: DownloadTask?): VersionInfo {
         val (gameVersion, loaderVersion) = parseFabricVersion(build.version)
         task?.let { DownloadManager.updateTask(it.id, 0.06f, "Получение Vanilla $gameVersion") }
-        val vanillaInfo = fetchVanillaVersionInfo(gameVersion, task)
+        val vanillaInfo = fetchAndInheritVanillaInfo(gameVersion, task)
 
         task?.let { DownloadManager.updateTask(it.id, 0.08f, "Получение профиля Fabric") }
         val fabricProfileUrl = "https://meta.fabricmc.net/v2/versions/loader/$gameVersion/$loaderVersion/profile/json"
@@ -175,7 +175,7 @@ class VersionMetadataFetcher(private val buildManager: BuildManager, private val
         return vanillaInfo.copy(
             id = fabricProfile.id,
             mainClass = fabricProfile.mainClass,
-            libraries = fabricProfile.libraries + vanillaInfo.libraries,
+            libraries = (fabricProfile.libraries + vanillaInfo.libraries).distinctBy { it.name },
             arguments = mergeArguments(vanillaInfo.arguments, fabricProfile.arguments),
             gameArguments = null
         )
@@ -186,7 +186,7 @@ class VersionMetadataFetcher(private val buildManager: BuildManager, private val
         val (gameVersion, forgeVersion) = parseForgeVersion(versionId)
 
         task?.let { DownloadManager.updateTask(it.id, 0.06f, "Получение Vanilla $gameVersion") }
-        fetchVanillaVersionInfo(gameVersion, task)
+        fetchAndInheritVanillaInfo(gameVersion, task)
 
         val installerUrl = "https://maven.minecraftforge.net/net/minecraftforge/forge/$gameVersion-$forgeVersion/forge-$gameVersion-$forgeVersion-installer.jar"
         val installerJar = launcherDataDir.resolve("temp").resolve("forge-installer-$versionId.jar")
@@ -211,12 +211,12 @@ class VersionMetadataFetcher(private val buildManager: BuildManager, private val
         }
 
         val versionProfile = json.decodeFromString<VersionProfile>(profileJsonPath.readText())
-        val vanillaInfo = fetchVanillaVersionInfo(versionProfile.inheritsFrom, task)
+        val vanillaInfo = fetchAndInheritVanillaInfo(versionProfile.inheritsFrom, task)
 
         return vanillaInfo.copy(
             id = versionProfile.id,
             mainClass = versionProfile.mainClass,
-            libraries = versionProfile.libraries + vanillaInfo.libraries,
+            libraries = (versionProfile.libraries + vanillaInfo.libraries).distinctBy { it.name },
             arguments = mergeArguments(vanillaInfo.arguments, versionProfile.arguments),
             gameArguments = null
         )
@@ -225,7 +225,7 @@ class VersionMetadataFetcher(private val buildManager: BuildManager, private val
     private suspend fun fetchQuiltProfile(build: MinecraftBuild, task: DownloadTask?): VersionInfo {
         val (gameVersion, loaderVersion) = parseQuiltVersion(build.version)
         task?.let { DownloadManager.updateTask(it.id, 0.06f, "Получение Vanilla $gameVersion") }
-        val vanillaInfo = fetchVanillaVersionInfo(gameVersion, task)
+        val vanillaInfo = fetchAndInheritVanillaInfo(gameVersion, task)
 
         task?.let { DownloadManager.updateTask(it.id, 0.08f, "Получение профиля Quilt") }
         val quiltProfileUrl = "https://meta.quiltmc.org/v3/versions/loader/$gameVersion/$loaderVersion/profile/json"
@@ -238,7 +238,7 @@ class VersionMetadataFetcher(private val buildManager: BuildManager, private val
         return vanillaInfo.copy(
             id = quiltProfile.id,
             mainClass = quiltProfile.mainClass,
-            libraries = quiltProfile.libraries + vanillaInfo.libraries,
+            libraries = (quiltProfile.libraries + vanillaInfo.libraries).distinctBy { it.name },
             arguments = mergeArguments(vanillaInfo.arguments, quiltProfile.arguments),
             gameArguments = null
         )
@@ -250,7 +250,7 @@ class VersionMetadataFetcher(private val buildManager: BuildManager, private val
     private suspend fun fetchNeoForgeProfile(build: MinecraftBuild, task: DownloadTask?): VersionInfo {
         val (gameVersion, neoForgeVersion) = parseNeoForgeVersion(build.version)
         task?.let { DownloadManager.updateTask(it.id, 0.06f, "Получение Vanilla $gameVersion") }
-        fetchVanillaVersionInfo(gameVersion, task)
+        fetchAndInheritVanillaInfo(gameVersion, task)
 
         val installerUrl = "https://maven.neoforged.net/releases/net/neoforged/neoforge/$neoForgeVersion/neoforge-$neoForgeVersion-installer.jar"
         val installerJar = launcherDataDir.resolve("temp").resolve("neoforge-installer-$neoForgeVersion.jar")
@@ -282,12 +282,12 @@ class VersionMetadataFetcher(private val buildManager: BuildManager, private val
         }
 
         val versionProfile = json.decodeFromString<VersionProfile>(profileJsonPath.readText())
-        val vanillaInfo = fetchVanillaVersionInfo(versionProfile.inheritsFrom, task)
+        val vanillaInfo = fetchAndInheritVanillaInfo(versionProfile.inheritsFrom, task)
 
         return vanillaInfo.copy(
             id = versionProfile.id,
             mainClass = versionProfile.mainClass,
-            libraries = versionProfile.libraries + vanillaInfo.libraries,
+            libraries = (versionProfile.libraries + vanillaInfo.libraries).distinctBy { it.name },
             arguments = mergeArguments(vanillaInfo.arguments, versionProfile.arguments),
             gameArguments = null
         )
@@ -323,7 +323,32 @@ class VersionMetadataFetcher(private val buildManager: BuildManager, private val
         log("Forge installer finished successfully.")
     }
 
-    private suspend fun fetchVanillaVersionInfo(gameVersion: String, task: DownloadTask?): VersionInfo {
+    private suspend fun fetchAndInheritVanillaInfo(gameVersion: String, task: DownloadTask?): VersionInfo {
+        val versionInfo = fetchSingleVanillaInfo(gameVersion, task)
+        
+        // Check for inheritance
+        val parentVersionId = versionInfo.inheritsFrom
+        if (parentVersionId != null) {
+            log("Version '$gameVersion' inherits from '$parentVersionId'. Fetching parent...")
+            val parentInfo = fetchAndInheritVanillaInfo(parentVersionId, task)
+            
+            // Merge libraries and arguments
+            return versionInfo.copy(
+                libraries = (versionInfo.libraries + parentInfo.libraries).distinctBy { it.name },
+                arguments = mergeArguments(parentInfo.arguments, versionInfo.arguments),
+                mainClass = versionInfo.mainClass ?: parentInfo.mainClass,
+                assetIndex = versionInfo.assetIndex ?: parentInfo.assetIndex,
+                assets = versionInfo.assets ?: parentInfo.assets,
+                downloads = versionInfo.downloads ?: parentInfo.downloads,
+                gameArguments = versionInfo.gameArguments ?: parentInfo.gameArguments,
+                inheritsFrom = null // Clear inheritance after merging
+            )
+        }
+        
+        return versionInfo
+    }
+
+    private suspend fun fetchSingleVanillaInfo(gameVersion: String, task: DownloadTask?): VersionInfo {
         val jsonFile = globalVersionsDir.resolve(gameVersion).resolve("$gameVersion.json")
         if (jsonFile.exists()) {
             return json.decodeFromString(jsonFile.readText())

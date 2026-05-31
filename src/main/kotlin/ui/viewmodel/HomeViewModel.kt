@@ -71,7 +71,7 @@ class HomeViewModel(
         val buildToUpdate = appViewModel.buildList.find { it.name == oldBuildName }
         if (buildToUpdate != null) {
             appViewModel.showBuildSettingsScreen = buildToUpdate
-            appViewModel.onSaveBuildSettings(newName, newVersion, newType.name, newImagePath, javaPath, maxRam, javaArgs, envVars)
+            appViewModel.onSaveBuildSettings(newName, newVersion, newType, newImagePath, javaPath, maxRam, javaArgs, envVars)
         }
     }
 }

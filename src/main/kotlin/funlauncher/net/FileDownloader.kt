@@ -50,10 +50,12 @@ class FileDownloader(
         val gameVersionForJar = getGameVersionForJar(build)
         val clientJarPath = globalVersionsDir.resolve(gameVersionForJar).resolve("$gameVersionForJar.jar")
         if (!clientJarPath.exists()) {
-            // This needs the vanilla info, which we assume is already fetched.
-            // A better approach would be to pass the vanilla info URL directly.
-            val vanillaInfoForJar = VersionMetadataFetcher(buildManager, pathManager).getVersionInfo(build.copy(type = BuildType.VANILLA, version = gameVersionForJar))
-            downloadFile(vanillaInfoForJar.downloads.client.url, clientJarPath, "Client JAR")
+            val clientDownloadUrl = versionInfo.downloads?.client?.url
+            if (clientDownloadUrl != null) {
+                downloadFile(clientDownloadUrl, clientJarPath, "Client JAR")
+            } else {
+                log("Client JAR download URL not found for version ${versionInfo.id}, assuming it's provided by a modloader.")
+            }
         }
 
         // 2. Download Libraries
@@ -73,10 +75,12 @@ class FileDownloader(
         }.awaitAll()
 
         // 3. Download Asset Index and Assets
-        val idxFile = globalAssetsDir.resolve("indexes").resolve("${versionInfo.assetIndex.id}.json")
-        downloadFile(versionInfo.assetIndex.url, idxFile, "Asset Index")
-        val idx = json.decodeFromString<AssetIndex>(idxFile.readText())
-        downloadAssetsInParallel(idx) { progress, status -> onProgress(0.5f + progress * 0.5f, status) }
+        versionInfo.assetIndex?.let { assetIndexInfo ->
+            val idxFile = globalAssetsDir.resolve("indexes").resolve("${assetIndexInfo.id}.json")
+            downloadFile(assetIndexInfo.url, idxFile, "Asset Index")
+            val idx = json.decodeFromString<AssetIndex>(idxFile.readText())
+            downloadAssetsInParallel(idx) { progress, status -> onProgress(0.5f + progress * 0.5f, status) }
+        }
     }
 
     private suspend fun downloadLibrary(lib: VersionInfo.Library) {

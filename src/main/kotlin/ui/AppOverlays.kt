@@ -8,6 +8,7 @@ import ui.screens.AccountScreen
 import ui.screens.BuildSettingsScreen
 import ui.screens.JavaManagerWindow
 import ui.viewmodel.AppViewModel
+import ui.widgets.GameConsole
 
 @Composable
 fun AppOverlays(
@@ -41,7 +42,7 @@ fun AppOverlays(
             globalSettings = appState.settings,
             onDismiss = { viewModel.showBuildSettingsScreen = null },
             onSave = { newName, newVersion, newType, newImagePath, javaPath, maxRam, javaArgs, envVars ->
-                viewModel.onSaveBuildSettings(newName, newVersion, newType.name, newImagePath, javaPath, maxRam, javaArgs, envVars)
+                viewModel.onSaveBuildSettings(newName, newVersion, newType, newImagePath, javaPath, maxRam, javaArgs, envVars)
             }
         )
     }
@@ -56,7 +57,7 @@ fun AppOverlays(
 
     // This should be a separate component, but for now let's keep it here
     if (viewModel.showGameConsole) {
-        // GameConsoleView(...)
+        GameConsole(output = viewModel.gameOutput)
     }
 
     viewModel.showRamWarningDialog?.let { build ->

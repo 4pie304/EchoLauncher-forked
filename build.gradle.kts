@@ -85,6 +85,10 @@ dependencies {
     implementation("org.apache.commons:commons-lang3:3.18.0")
     implementation("sh.calvin.reorderable:reorderable:2.4.0")
 
+    // SLF4J
+    implementation("org.slf4j:slf4j-api:2.0.12")
+    implementation("org.slf4j:slf4j-simple:2.0.12")
+
     // Exposed for SQLite
     implementation("org.jetbrains.exposed:exposed-core:0.52.0")
     implementation("org.jetbrains.exposed:exposed-dao:0.52.0")

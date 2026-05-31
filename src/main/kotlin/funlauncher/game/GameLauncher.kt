@@ -12,11 +12,15 @@ import funlauncher.BuildType
 import funlauncher.MinecraftBuild
 import funlauncher.auth.Account
 import funlauncher.managers.PathManager
+import org.slf4j.LoggerFactory
 import java.io.File
 import java.nio.file.Files
 import java.nio.file.Path
 import java.util.*
+import java.util.jar.Attributes
 import java.util.jar.JarFile
+import java.util.jar.JarOutputStream
+import java.util.jar.Manifest
 import kotlin.io.path.exists
 import kotlin.io.path.name
 import kotlin.io.path.pathString
@@ -36,14 +40,13 @@ class GameLauncher(
     private val build: MinecraftBuild,
     private val pathManager: PathManager
 ) {
+    private val logger = LoggerFactory.getLogger(javaClass)
 
     private val nativesDir: Path = pathManager.getNativesDir(build)
     private val globalLibrariesDir: Path = pathManager.getGlobalLibrariesDir()
     private val globalVersionsDir: Path = pathManager.getGlobalVersionsDir()
     private val globalAssetsDir: Path = pathManager.getGlobalAssetsDir()
     private val gameDir: Path = File(build.installPath).toPath()
-
-    private fun log(message: String) = println("[GameLauncher] $message")
 
     suspend fun createLaunchPayload(
         account: Account,
@@ -63,6 +66,12 @@ class GameLauncher(
         } else {
             emptyMap()
         }
+        
+        logger.info("--- LAUNCH PAYLOAD ---")
+        logger.info("Command: ${commandList.joinToString(" ")}")
+        logger.info("WorkDir: ${gameDir.toAbsolutePath()}")
+        logger.info("Environment: $envMap")
+        logger.info("----------------------")
 
         return LaunchPayload(
             command = commandList,
@@ -73,7 +82,7 @@ class GameLauncher(
     }
 
     private fun extractNatives() {
-        log("Extracting natives...")
+        logger.info("Extracting natives...")
         if (nativesDir.exists()) nativesDir.toFile().deleteRecursively()
         nativesDir.toFile().mkdirs()
 
@@ -96,13 +105,13 @@ class GameLauncher(
                     if (jarPath.exists()) {
                         extractJarContents(jarPath)
                     } else {
-                        log("Native JAR not found for extraction: ${jarPath.pathString}")
+                        logger.warn("Native JAR not found for extraction: ${jarPath.pathString}")
                     }
                 }
             }
 
         if (isLinuxArm) {
-            log("Linux ARM detected. Forcing LWJGL 3.3.3 natives.")
+            logger.info("Linux ARM detected. Forcing LWJGL 3.3.3 natives.")
             val lwjglArtifacts = listOf(
                 "lwjgl", "lwjgl-glfw", "lwjgl-jemalloc", "lwjgl-openal", "lwjgl-opengl", "lwjgl-stb", "lwjgl-tinyfd"
             )
@@ -115,7 +124,7 @@ class GameLauncher(
                 if (jarPath.exists()) {
                     extractJarContents(jarPath)
                 } else {
-                    log("Required LWJGL native JAR not found, this might cause a crash: ${jarPath.pathString}")
+                    logger.warn("Required LWJGL native JAR not found, this might cause a crash: ${jarPath.pathString}")
                 }
             }
         }
@@ -129,18 +138,21 @@ class GameLauncher(
                     .forEach { entry ->
                         val outFile = nativesDir.resolve(entry.name.substringAfterLast('/'))
                         Files.copy(jar.getInputStream(entry), outFile, java.nio.file.StandardCopyOption.REPLACE_EXISTING)
-                        log("Extracted ${entry.name} from ${jarPath.name} to ${outFile.pathString}")
+                        logger.debug("Extracted ${entry.name} from ${jarPath.name} to ${outFile.pathString}")
                     }
             }
         } catch (e: Exception) {
-            log("Failed to extract ${jarPath.name}: ${e.message}")
+            logger.error("Failed to extract ${jarPath.name}", e)
         }
     }
 
     private fun buildLaunchCommand(account: Account, javaPath: String, maxRamMb: Int, customJavaArgs: String): List<String> {
-        val classpath = buildClasspath()
-        val replacements = createReplacementsMap(classpath, account)
         val osName = getOsName()
+        val isWindows = osName == "windows"
+        
+        val classpath = buildClasspathList()
+        val replacements = createReplacementsMap(classpath.joinToString(File.pathSeparator), account)
+        
         val replacePlaceholders = { str: String ->
             var result = str
             replacements.forEach { (k, v) -> result = result.replace("\${$k}", v) }
@@ -150,28 +162,46 @@ class GameLauncher(
         val finalCommand = mutableListOf<String>()
         finalCommand.add(javaPath.ifBlank { "java" })
         finalCommand.add("-Xmx${maxRamMb}M")
-        processArguments(versionInfo.arguments?.jvm).map(replacePlaceholders).let { finalCommand.addAll(it) }
-        if (customJavaArgs.isNotBlank()) {
-            finalCommand.addAll(customJavaArgs.split(" ").map(replacePlaceholders))
-        }
-        finalCommand.add(versionInfo.mainClass)
 
-        val gameArgsSource = versionInfo.arguments?.game ?: versionInfo.gameArguments?.split(" ")?.map { JsonElementWrapper.StringValue(it) }
-        val processedGameArgs = processArguments(gameArgsSource).map(replacePlaceholders)
-        finalCommand.addAll(filterUndesiredArgs(processedGameArgs))
+        // Modern argument format (1.13+)
+        if (versionInfo.arguments != null) {
+            processArguments(versionInfo.arguments.jvm).map(replacePlaceholders).let { finalCommand.addAll(it) }
+            if (customJavaArgs.isNotBlank()) {
+                finalCommand.addAll(customJavaArgs.split(Regex("\\s+")).map(replacePlaceholders))
+            }
+            finalCommand.add(versionInfo.mainClass ?: "net.minecraft.client.main.Main")
+            val gameArgsSource = versionInfo.arguments.game
+            val processedGameArgs = processArguments(gameArgsSource).map(replacePlaceholders)
+            finalCommand.addAll(filterUndesiredArgs(processedGameArgs))
+        } else { // Legacy argument format (pre-1.13)
+            finalCommand.add("-Djava.library.path=\${natives_directory}")
+            finalCommand.add("-cp")
+            finalCommand.add(classpath.joinToString(File.pathSeparator))
+
+            if (customJavaArgs.isNotBlank()) {
+                finalCommand.addAll(customJavaArgs.split(Regex("\\s+")).map(replacePlaceholders))
+            }
+            finalCommand.add(versionInfo.mainClass ?: "net.minecraft.client.main.Main")
+            versionInfo.gameArguments?.let { args ->
+                finalCommand.addAll(args.split(Regex("\\s+")).map(replacePlaceholders))
+            }
+        }
+
+        // Apply replacements to the whole command list
+        val fullyReplacedCommand = finalCommand.map(replacePlaceholders).toMutableList()
 
         if (osName != "osx") {
-            finalCommand.removeAll { it == "-XstartOnFirstThread" }
+            fullyReplacedCommand.removeAll { it == "-XstartOnFirstThread" }
         }
 
-        log("--- FINAL LAUNCH COMMAND ---")
-        log(finalCommand.joinToString(" "))
-        log("----------------------------")
+        logger.info("--- FINAL LAUNCH COMMAND ---")
+        logger.info(fullyReplacedCommand.joinToString(" "))
+        logger.info("----------------------------")
 
-        return finalCommand
+        return fullyReplacedCommand
     }
 
-    private fun buildClasspath(): String {
+    private fun buildClasspathList(): List<String> {
         val cpList = mutableListOf<String>()
         val osName = getOsName()
         val arch = getArch()
@@ -189,7 +219,7 @@ class GameLauncher(
         }
 
         if (isLinuxArm) {
-            log("Linux ARM detected. Forcing LWJGL 3.3.3 on classpath.")
+            logger.info("Linux ARM detected. Forcing LWJGL 3.3.3 on classpath.")
             val lwjglArtifacts = listOf(
                 "lwjgl", "lwjgl-glfw", "lwjgl-jemalloc", "lwjgl-openal", "lwjgl-opengl", "lwjgl-stb", "lwjgl-tinyfd"
             )
@@ -213,7 +243,7 @@ class GameLauncher(
         }
         val clientJarPath = globalVersionsDir.resolve(gameVersionForJar).resolve("$gameVersionForJar.jar")
         cpList.add(clientJarPath.toAbsolutePath().toString())
-        return cpList.joinToString(File.pathSeparator)
+        return cpList
     }
 
     private fun createReplacementsMap(classpath: String, account: Account): Map<String, String> = mapOf(
@@ -225,7 +255,7 @@ class GameLauncher(
         "version_name" to versionInfo.id,
         "game_directory" to gameDir.toAbsolutePath().toString(),
         "assets_root" to globalAssetsDir.toAbsolutePath().toString(),
-        "assets_index_name" to versionInfo.assetIndex.id,
+        "assets_index_name" to (versionInfo.assetIndex?.id ?: "legacy"),
         "auth_uuid" to (account.uuid ?: UUID.nameUUIDFromBytes(account.username.toByteArray()).toString()),
         "auth_access_token" to (account.accessToken ?: "0"),
         "user_properties" to "{}",
@@ -285,27 +315,18 @@ class GameLauncher(
 
     private fun isRuleApplicable(rules: List<VersionInfo.Rule>): Boolean {
         if (rules.isEmpty()) return true
-        var applies = false
-        var hasOsSpecificRule = false
+        var finalAction = "allow" // Default to allow if no specific rule matches
 
         for (rule in rules) {
-            if (rule.os != null && rule.os.name != null) {
-                hasOsSpecificRule = true
-                if (rule.os.name == getOsName()) {
-                    return rule.action == "allow"
-                }
+            val osRule = rule.os
+            if (osRule?.name == getOsName()) {
+                finalAction = rule.action
+            } else if (osRule == null) {
+                // Rule applies to all OS, but might be overridden by a more specific rule later
+                finalAction = rule.action
             }
         }
-
-        if (!hasOsSpecificRule) {
-            for (rule in rules) {
-                if (rule.os == null) {
-                    return rule.action == "allow"
-                }
-            }
-        }
-
-        return !hasOsSpecificRule
+        return finalAction == "allow"
     }
 
     private fun getOsName(): String = when {

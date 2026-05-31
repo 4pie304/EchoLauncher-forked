@@ -31,13 +31,14 @@ import kotlinx.serialization.json.put
 @Serializable
 data class VersionInfo(
     val id: String,
-    val libraries: List<Library>,
-    val mainClass: String,
+    val inheritsFrom: String? = null,
+    val libraries: List<Library> = emptyList(),
+    val mainClass: String? = null,
     @SerialName("minecraftArguments") val gameArguments: String? = null,
     val arguments: Arguments? = null,
-    val assets: String,
-    val downloads: Downloads,
-    val assetIndex: AssetIndexInfo
+    val assets: String? = null,
+    val downloads: Downloads? = null,
+    val assetIndex: AssetIndexInfo? = null
 ) {
     @Serializable
     data class Library(

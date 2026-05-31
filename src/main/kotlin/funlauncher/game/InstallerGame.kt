@@ -23,6 +23,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlin.coroutines.coroutineContext
 import kotlinx.coroutines.job
+import org.slf4j.LoggerFactory
 
 /**
  * Main installer class that coordinates the launch process.
@@ -30,19 +31,16 @@ import kotlinx.coroutines.job
  */
 class MinecraftInstaller(private val build: MinecraftBuild, private val buildManager: BuildManager) {
 
+    private val logger = LoggerFactory.getLogger(javaClass)
     private val pathManager: PathManager = PathManager(PathManager.getDefaultAppDataDirectory())
-
-    private fun log(message: String) {
-        println("[Installer] $message")
-    }
 
     suspend fun launchGame(
         account: Account, javaPath: String, maxRamMb: Int, javaArgs: String, envVars: String
     ): Process {
         val task = DownloadManager.startTask("Minecraft ${build.version}", coroutineContext.job)
         try {
-            log("Starting launch for ${build.name} (${build.version})")
-            log("System: ${System.getProperty("os.name")} ${System.getProperty("os.arch")}, Java: $javaPath")
+            logger.info("Starting launch for ${build.name} (${build.version})")
+            logger.info("System: ${System.getProperty("os.name")} ${System.getProperty("os.arch")}, Java: $javaPath")
 
             // 1. Fetch Version Metadata
             DownloadManager.updateTask(task.id, 0.05f, "Получение метаданных...")
@@ -56,20 +54,25 @@ class MinecraftInstaller(private val build: MinecraftBuild, private val buildMan
                 DownloadManager.updateTask(task.id, 0.1f + progress * 0.8f, status)
             }
 
-            // 3. Create Payload and Launch Directly
+            // 3. Create Payload and Launch
             DownloadManager.updateTask(task.id, 0.95f, "Запуск игры...")
             val gameLauncher = GameLauncher(versionInfo, build, pathManager)
             val payload = gameLauncher.createLaunchPayload(account, javaPath, maxRamMb, javaArgs, envVars)
             
-            val pb = ProcessBuilder(payload.command)
-            pb.directory(File(payload.workDir))
-            payload.environment.forEach { (key, value) -> pb.environment()[key] = value }
-            
-            log("Launching: ${payload.command.joinToString(" ")}")
-            val process = pb.start() // Запуск процесса в фоне напрямую
+            val processBuilder = ProcessBuilder(payload.command)
+                .directory(File(payload.workDir))
+                .redirectErrorStream(true) // Объединяем stderr и stdout
+
+            // Добавляем переменные окружения
+            processBuilder.environment().putAll(payload.environment)
+
+            logger.info("Starting process with command: ${payload.command.joinToString(" ")}")
+            val process = withContext(Dispatchers.IO) {
+                processBuilder.start()
+            }
 
             DownloadManager.updateTask(task.id, 1.0f, "Игра запущена")
-            log("Game started successfully.")
+            logger.info("Game started successfully.")
             return process
 
         } catch (e: Exception) {
@@ -80,8 +83,7 @@ class MinecraftInstaller(private val build: MinecraftBuild, private val buildMan
     }
 
     private fun handleLaunchException(e: Exception): Nothing {
-        log("Launch failed: ${e.message}")
-        e.printStackTrace()
+        logger.error("Launch failed", e)
         when (e) {
             is UnknownHostException, is ConnectException, is HttpRequestTimeoutException -> {
                 val versionId = build.modloaderVersion ?: build.version

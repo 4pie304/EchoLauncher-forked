@@ -2,7 +2,7 @@ plugins {
     kotlin("jvm")
     kotlin("plugin.compose")
     id("org.jetbrains.compose")
-    id("application")
+        //   id("application")
 }
 
 group = "org.chokopieum.software.ui"
@@ -31,14 +31,14 @@ compose.resources {
 }
 
 // Задаём главный класс по умолчанию
-application {
-    mainClass.set("org.chokopieum.software.ui.MateriaCircularProgressIndicatorPreviewKt")
-}
+//application {
+//    mainClass.set("org.chokopieum.software.ui.MateriaCircularProgressIndicatorPreviewKt")
+//}
 
 // Отдельная задача для запуска превью индикатора загрузки
-tasks.register<JavaExec>("runProgressIndicatorPreview") {
-    group = "application"
-    description = "Run MateriaCircularProgressIndicator Preview"
-    classpath = sourceSets["main"].runtimeClasspath
-    mainClass.set("org.chokopieum.software.ui.MateriaCircularProgressIndicatorPreviewKt")
-}
+//tasks.register<JavaExec>("runProgressIndicatorPreview") {
+//    group = "application"
+ //   description = "Run MateriaCircularProgressIndicator Preview"
+ //   classpath = sourceSets["main"].runtimeClasspath
+ //   mainClass.set("org.chokopieum.software.ui.MateriaCircularProgressIndicatorPreviewKt")
+//}

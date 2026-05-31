@@ -37,6 +37,7 @@ import splash.createAndShowSplashScreen
 import state.AppState
 import state.Screen
 import ui.App
+import ui.AppTab
 import ui.screens.wizard.FirstRunWizard
 import ui.theme.AnimatedAppTheme
 import ui.viewmodel.AppViewModel
@@ -54,10 +55,13 @@ import kotlin.system.exitProcess
 import java.io.File
 import javax.swing.JOptionPane
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.ui.graphics.Color
 import funlauncher.SettingsManager
 import funlauncher.Theme
 import org.jetbrains.jewel.ui.ComponentStyling
 import org.jetbrains.jewel.intui.window.decoratedWindow
+import ui.screens.TitleBarActions
+import ui.viewmodel.HomeViewModel
 
 // Флаг, указывающий, что основной контент готов к отображению (используется для скрытия сплеш-скрина).
 var isContentReady by mutableStateOf(false)
@@ -227,7 +231,7 @@ private fun runApplication(isUiTest: Boolean) {
             }
         }
 
-        when (currentScreen) {
+        when (val screen = currentScreen) {
             is Screen.Splash -> { /* Do nothing, splash is already shown */ }
             is Screen.FirstRunWizard -> {
                 var wizardTheme by remember { mutableStateOf(Theme.Dark) }
@@ -259,7 +263,7 @@ private fun runApplication(isUiTest: Boolean) {
                             }
                         }
                     ) {
-                        TitleBar {
+                        TitleBar(gradientStartColor = Color.Transparent) {
                             Text("Materia - Мастер настройки")
                         }
                         AnimatedAppTheme(wizardTheme) {
@@ -283,7 +287,7 @@ private fun runApplication(isUiTest: Boolean) {
                 }
             }
             is Screen.MainApp -> {
-                val state = (currentScreen as Screen.MainApp).state
+                val state = screen.state
                 val viewModel = remember {
                     AppViewModel(
                         appState = state,
@@ -300,6 +304,8 @@ private fun runApplication(isUiTest: Boolean) {
                         }
                     )
                 }
+                val homeViewModel = remember { HomeViewModel(viewModel, globalPathManager, state.settings) }
+
 
                 val currentAppState = appState ?: return@application
                 val settings = currentAppState.settings
@@ -336,8 +342,12 @@ private fun runApplication(isUiTest: Boolean) {
                             }
                         }
                     ) {
-                        TitleBar {
-                            Text("Materia")
+                        TitleBar(gradientStartColor = Color.Transparent) {
+                            if (viewModel.currentTab == AppTab.Home) {
+                                TitleBarActions(homeViewModel)
+                            } else {
+                                Text("Materia")
+                            }
                         }
                         AnimatedAppTheme(settings.theme) {
                             Box(modifier = Modifier.fillMaxSize()) {
@@ -345,7 +355,8 @@ private fun runApplication(isUiTest: Boolean) {
                                     viewModel = viewModel,
                                     appState = currentAppState,
                                     pathManager = globalPathManager,
-                                    cacheManager = globalCacheManager
+                                    cacheManager = globalCacheManager,
+                                    homeViewModel = homeViewModel
                                 )
                                 SideEffect {
                                     if (!isContentReady) isContentReady = true
