@@ -52,6 +52,7 @@ import funlauncher.BuildType
 import funlauncher.MinecraftBuild
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import org.jetbrains.jewel.window.TitleBarScope
 import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyGridState
 import ui.viewmodel.HomeViewModel
@@ -265,27 +266,34 @@ fun ExpandedBuildScreenWrapper(
 }
 
 @Composable
-fun TitleBarActions(
+fun TitleBarScope.TitleBarActions(
     viewModel: HomeViewModel
 ) {
+    IconButton(
+        onClick = viewModel::onOpenAccountManager,
+        modifier = Modifier.align(Alignment.Start)
+    ) {
+        AvatarImage(
+            account = viewModel.currentAccount,
+            modifier = Modifier.size(32.dp).clip(SquircleShape)
+        )
+    }
+
     Row(
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(16.dp)
+        horizontalArrangement = Arrangement.spacedBy(16.dp),
+        modifier = Modifier.align(Alignment.End)
     ) {
-        // Аватар слева
-        IconButton(onClick = viewModel::onOpenAccountManager) {
-            AvatarImage(
-                account = viewModel.currentAccount,
-                modifier = Modifier.size(40.dp).clip(SquircleShape)
-            )
-        }
         // Поисковая строка
         ExpandableSearchBar(
             searchQuery = viewModel.searchQuery,
             onSearchQueryChange = viewModel::onSearchQueryChanged
         )
 
-        FilledTonalButton(onClick = viewModel::onAddBuildClick) {
+        FilledTonalButton(
+            onClick = viewModel::onAddBuildClick,
+            modifier = Modifier.height(32.dp)
+        ) {
             Text("Добавить")
         }
     }
@@ -305,15 +313,15 @@ private fun ExpandableSearchBar(
     val focusManager = LocalFocusManager.current
 
     val width by animateDpAsState(
-        targetValue = if (isExpanded) 300.dp else 48.dp,
+        targetValue = if (isExpanded) 250.dp else 32.dp,
         animationSpec = spring(stiffness = Spring.StiffnessLow)
     )
 
     Box(
         modifier = Modifier
-            .height(48.dp)
+            .height(32.dp)
             .width(width)
-            .clip(RoundedCornerShape(24.dp))
+            .clip(RoundedCornerShape(16.dp))
             .background(MaterialTheme.colorScheme.surfaceVariant)
             .clickable(
                 interactionSource = remember { MutableInteractionSource() },
@@ -336,9 +344,10 @@ private fun ExpandableSearchBar(
                     } else {
                         focusRequester.requestFocus()
                     }
-                }
+                },
+                modifier = Modifier.size(32.dp)
             ) {
-                Icon(Icons.Default.Search, contentDescription = "Поиск")
+                Icon(Icons.Default.Search, contentDescription = "Поиск", modifier = Modifier.size(18.dp))
             }
 
             // Поле ввода и кнопка закрытия
@@ -361,7 +370,7 @@ private fun ExpandableSearchBar(
                             }
                         },
                     singleLine = true,
-                    textStyle = MaterialTheme.typography.bodyLarge.copy(
+                    textStyle = MaterialTheme.typography.bodyMedium.copy(
                         color = MaterialTheme.colorScheme.onSurface
                     ),
                     cursorBrush = SolidColor(MaterialTheme.colorScheme.primary),
@@ -370,7 +379,7 @@ private fun ExpandableSearchBar(
                             if (searchQuery.isEmpty()) {
                                 Text(
                                     "Поиск...",
-                                    style = MaterialTheme.typography.bodyLarge,
+                                    style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                                 )
                             }
@@ -385,9 +394,10 @@ private fun ExpandableSearchBar(
                         isExpanded = false
                         wasFocused = false
                         focusManager.clearFocus()
-                    }
+                    },
+                    modifier = Modifier.size(32.dp)
                 ) {
-                    Icon(Icons.Default.Close, contentDescription = "Закрыть")
+                    Icon(Icons.Default.Close, contentDescription = "Закрыть", modifier = Modifier.size(18.dp))
                 }
             }
         }

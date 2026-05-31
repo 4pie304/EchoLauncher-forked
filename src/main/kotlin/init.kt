@@ -62,6 +62,7 @@ import org.jetbrains.jewel.ui.ComponentStyling
 import org.jetbrains.jewel.intui.window.decoratedWindow
 import ui.screens.TitleBarActions
 import ui.viewmodel.HomeViewModel
+import androidx.compose.ui.window.WindowPlacement
 
 // Флаг, указывающий, что основной контент готов к отображению (используется для скрытия сплеш-скрина).
 var isContentReady by mutableStateOf(false)
@@ -263,7 +264,7 @@ private fun runApplication(isUiTest: Boolean) {
                             }
                         }
                     ) {
-                        TitleBar(gradientStartColor = Color.Transparent) {
+                        TitleBar {
                             Text("Materia - Мастер настройки")
                         }
                         AnimatedAppTheme(wizardTheme) {
@@ -332,7 +333,7 @@ private fun runApplication(isUiTest: Boolean) {
                         title = "Materia",
                         visible = isContentReady,
                         icon = icon,
-                        state = rememberWindowState(width = 1200.dp, height = 800.dp, position = WindowPosition(Alignment.Center)),
+                        state = rememberWindowState(width = 1200.dp, height = 800.dp, position = WindowPosition(Alignment.Center), placement = WindowPlacement.Maximized),
                         onKeyEvent = {
                             if (it.isCtrlPressed && it.key == Key.Grave && it.type == KeyEventType.KeyDown) {
                                 LogCollector.saveLogsToDesktop()
@@ -342,7 +343,7 @@ private fun runApplication(isUiTest: Boolean) {
                             }
                         }
                     ) {
-                        TitleBar(gradientStartColor = Color.Transparent) {
+                        TitleBar {
                             if (viewModel.currentTab == AppTab.Home) {
                                 TitleBarActions(homeViewModel)
                             } else {
