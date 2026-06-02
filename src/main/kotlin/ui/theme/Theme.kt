@@ -2,7 +2,6 @@ package ui.theme
 
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Box
@@ -15,10 +14,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
 import funlauncher.Theme
-import org.chokopieum.software.materia_launcher.generated.resources.*
-import org.jetbrains.compose.resources.painterResource
 
 @Composable
 fun AnimatedAppTheme(
@@ -66,18 +62,8 @@ fun AnimatedAppTheme(
         colorScheme = colors
     ) {
         Box(
-            modifier = Modifier.fillMaxSize()
+            modifier = Modifier.fillMaxSize().background(gradientBrush)
         ) {
-            if (useDarkTheme) {
-                Image(
-                    painter = painterResource(Res.drawable.background_dark),
-                    contentDescription = "Background",
-                    modifier = Modifier.fillMaxSize(),
-                    contentScale = ContentScale.Crop
-                )
-            } else {
-                Box(modifier = Modifier.fillMaxSize().background(gradientBrush))
-            }
             content()
         }
     }

@@ -11,6 +11,8 @@ import io.ktor.serialization.kotlinx.json.*
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
+import io.ktor.client.plugins.defaultRequest
+import java.nio.channels.UnresolvedAddressException
 
 private const val MODRINTH_API_URL = "https://api.modrinth.com/v2"
 
@@ -25,7 +27,19 @@ class ModrinthApi(private val cacheManager: CacheManager) {
         }
         install(Logging) {
             logger = Logger.DEFAULT
-            level = LogLevel.NONE
+            level = LogLevel.BODY
+        }
+        // Add a default User-Agent to all requests, as recommended by Modrinth API docs
+        defaultRequest {
+            header("User-Agent", "chokopieum/materiakraft-launcher (chokopieum@gmail.com)")
+        }
+    }
+
+    private suspend fun <T> safeApiCall(block: suspend () -> T): T {
+        try {
+            return block()
+        } catch (e: UnresolvedAddressException) {
+            throw IllegalStateException("Failed to resolve host. Please check your internet connection.", e)
         }
     }
 
@@ -37,29 +51,35 @@ class ModrinthApi(private val cacheManager: CacheManager) {
     ): SearchResult {
         val cacheKey = "modrinth_search_${query}_${facets}_${limit}_${offset}"
         return cacheManager.getOrFetch(cacheKey) {
-            val response = client.get("$MODRINTH_API_URL/search") {
-                parameter("query", query)
-                parameter("facets", facets)
-                parameter("limit", limit)
-                parameter("offset", offset)
+            safeApiCall {
+                val response = client.get("$MODRINTH_API_URL/search") {
+                    parameter("query", query)
+                    parameter("facets", facets)
+                    parameter("limit", limit)
+                    parameter("offset", offset)
+                }
+                response.body()
             }
-            response.body()
         } ?: throw IllegalStateException("Failed to fetch search results")
     }
 
     suspend fun getProject(id: String): Project {
         val cacheKey = "modrinth_project_$id"
         return cacheManager.getOrFetch(cacheKey) {
-            val response = client.get("$MODRINTH_API_URL/project/$id")
-            response.body()
+            safeApiCall {
+                val response = client.get("$MODRINTH_API_URL/project/$id")
+                response.body()
+            }
         } ?: throw IllegalStateException("Failed to fetch project details")
     }
 
     suspend fun getProjectVersions(id: String): List<Version> {
         val cacheKey = "modrinth_project_versions_$id"
         return cacheManager.getOrFetch(cacheKey) {
-            val response = client.get("$MODRINTH_API_URL/project/$id/version")
-            response.body()
+            safeApiCall {
+                val response = client.get("$MODRINTH_API_URL/project/$id/version")
+                response.body()
+            }
         } ?: throw IllegalStateException("Failed to fetch project versions")
     }
 
@@ -68,21 +88,27 @@ class ModrinthApi(private val cacheManager: CacheManager) {
     suspend fun getCategories(): List<ModrinthCategoryTag> {
         val cacheKey = "modrinth_categories"
         return cacheManager.getOrFetch(cacheKey) {
-            client.get("$MODRINTH_API_URL/tag/category").body()
+            safeApiCall {
+                client.get("$MODRINTH_API_URL/tag/category").body()
+            }
         } ?: emptyList()
     }
 
     suspend fun getLoaders(): List<ModrinthLoaderTag> {
         val cacheKey = "modrinth_loaders"
         return cacheManager.getOrFetch(cacheKey) {
-            client.get("$MODRINTH_API_URL/tag/loader").body()
+            safeApiCall {
+                client.get("$MODRINTH_API_URL/tag/loader").body()
+            }
         } ?: emptyList()
     }
 
     suspend fun getGameVersions(): List<ModrinthGameVersionTag> {
         val cacheKey = "modrinth_game_versions"
         return cacheManager.getOrFetch(cacheKey) {
-            client.get("$MODRINTH_API_URL/tag/game_version").body()
+            safeApiCall {
+                client.get("$MODRINTH_API_URL/tag/game_version").body()
+            }
         } ?: emptyList()
     }
 
@@ -149,12 +175,14 @@ class ModrinthApi(private val cacheManager: CacheManager) {
     }
 
     internal suspend fun getPopularProjects(projectType: String): SearchResult {
-        val response = client.get("$MODRINTH_API_URL/search") {
-            parameter("facets", "[[\"project_type:$projectType\"]]")
-            parameter("index", "downloads")
-            parameter("limit", 20)
+        return safeApiCall {
+            val response = client.get("$MODRINTH_API_URL/search") {
+                parameter("facets", "[[\"project_type:$projectType\"]]")
+                parameter("index", "downloads")
+                parameter("limit", 20)
+            }
+            response.body()
         }
-        return response.body()
     }
 
     fun close() {

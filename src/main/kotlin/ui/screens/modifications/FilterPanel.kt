@@ -19,6 +19,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.unit.dp
+import funlauncher.MinecraftBuild
 import funlauncher.net.ModrinthCategoryTag
 import funlauncher.net.ModrinthLoaderTag
 import org.jetbrains.compose.resources.stringResource
@@ -31,23 +32,25 @@ import org.chokopieum.software.materia_launcher.generated.resources.versions
 import ui.screens.FilterState
 import ui.widgets.ImageLoader
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun FilterPanel(
-    displayedVersions: List<String>,
-    selectedVersions: MutableList<String>,
-    filteredCategories: List<ModrinthCategoryTag>,
-    selectedCategories: MutableMap<String, FilterState>,
-    filteredLoaders: List<ModrinthLoaderTag>,
-    selectedLoaders: MutableMap<String, FilterState>,
-    showOnlyReleaseVersions: Boolean,
-    onShowOnlyReleaseVersionsChange: (Boolean) -> Unit
+    viewModel: ModificationsViewModel
 ) {
-    // Состояния для сворачиваемых списков
-    var versionsExpanded by remember { mutableStateOf(true) }
-    var categoriesExpanded by remember { mutableStateOf(true) }
-    var loadersExpanded by remember { mutableStateOf(true) }
+    val displayedVersions = remember(viewModel.allVanillaVersions, viewModel.showOnlyReleaseVersions) {
+        if (viewModel.showOnlyReleaseVersions) {
+            viewModel.allVanillaVersions.filter { version ->
+                !version.contains("snapshot", ignoreCase = true) &&
+                        !version.contains("pre-release", ignoreCase = true) &&
+                        !version.contains("rc", ignoreCase = true) &&
+                        !version.contains("alpha", ignoreCase = true) &&
+                        !version.contains("beta", ignoreCase = true)
+            }
+        } else {
+            viewModel.allVanillaVersions
+        }
+    }
 
-    // Состояния для "Показать больше"
     var showAllVersionsList by remember { mutableStateOf(false) }
     var showAllCategoriesList by remember { mutableStateOf(false) }
     var showAllLoadersList by remember { mutableStateOf(false) }
@@ -63,22 +66,64 @@ fun FilterPanel(
             .padding(16.dp)
             .verticalScroll(rememberScrollState())
     ) {
-        // Секция версий
+        Text("Фильтр по сборке", style = MaterialTheme.typography.titleMedium)
+        Spacer(Modifier.height(8.dp))
+        ExposedDropdownMenuBox(
+            expanded = viewModel.buildDropdownExpanded,
+            onExpandedChange = { viewModel.buildDropdownExpanded = !viewModel.buildDropdownExpanded },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            OutlinedTextField(
+                value = viewModel.selectedBuildForFilter?.name ?: "Не выбрана",
+                onValueChange = {},
+                readOnly = true,
+                label = { Text("Сборка") },
+                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = viewModel.buildDropdownExpanded) },
+                modifier = Modifier.menuAnchor().fillMaxWidth()
+            )
+            ExposedDropdownMenu(
+                expanded = viewModel.buildDropdownExpanded,
+                onDismissRequest = { viewModel.buildDropdownExpanded = false }
+            ) {
+                DropdownMenuItem(
+                    text = { Text("Не выбрана") },
+                    onClick = {
+                        viewModel.selectedBuildForFilter = null
+                        viewModel.selectedVersions.clear()
+                        viewModel.selectedLoaders.clear()
+                        viewModel.buildDropdownExpanded = false
+                    }
+                )
+                viewModel.allBuilds.forEach { build ->
+                    DropdownMenuItem(
+                        text = { Text(build.name) },
+                        onClick = {
+                            viewModel.selectedBuildForFilter = build
+                            viewModel.buildDropdownExpanded = false
+                        }
+                    )
+                }
+            }
+        }
+        Spacer(Modifier.height(16.dp))
+        Divider()
+        Spacer(Modifier.height(16.dp))
+
         Row(
-            modifier = Modifier.fillMaxWidth().clickable { versionsExpanded = !versionsExpanded },
+            modifier = Modifier.fillMaxWidth().clickable { viewModel.versionsExpanded = !viewModel.versionsExpanded },
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(stringResource(Res.string.versions), style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-            IconButton(onClick = { versionsExpanded = !versionsExpanded }) {
+            IconButton(onClick = { viewModel.versionsExpanded = !viewModel.versionsExpanded }) {
                 Icon(
-                    imageVector = if (versionsExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                    contentDescription = if (versionsExpanded) "Свернуть версии" else "Развернуть версии"
+                    imageVector = if (viewModel.versionsExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                    contentDescription = if (viewModel.versionsExpanded) "Свернуть версии" else "Развернуть версии"
                 )
             }
         }
         Spacer(Modifier.height(8.dp))
 
-        AnimatedVisibility(visible = versionsExpanded) {
+        AnimatedVisibility(visible = viewModel.versionsExpanded) {
             Column {
                 val versionsToDisplay = if (showAllVersionsList) displayedVersions else displayedVersions.take(7)
                 versionsToDisplay.forEach { version ->
@@ -89,14 +134,16 @@ fun FilterPanel(
                     ) {
                         Row(
                             modifier = Modifier.clickable {
-                                if (version in selectedVersions) selectedVersions.remove(version) else selectedVersions.add(version)
+                                viewModel.selectedBuildForFilter = null
+                                if (version in viewModel.selectedVersions) viewModel.selectedVersions.remove(version) else viewModel.selectedVersions.add(version)
                             }.padding(12.dp),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Checkbox(
-                                checked = version in selectedVersions,
+                                checked = version in viewModel.selectedVersions,
                                 onCheckedChange = {
-                                    if (it) selectedVersions.add(version) else selectedVersions.remove(version)
+                                    viewModel.selectedBuildForFilter = null
+                                    if (it) viewModel.selectedVersions.add(version) else viewModel.selectedVersions.remove(version)
                                 }
                             )
                             Text(version, modifier = Modifier.padding(start = 4.dp))
@@ -108,32 +155,31 @@ fun FilterPanel(
                         Text(if (showAllVersionsList) "Свернуть" else "Показать больше (${displayedVersions.size - 7})")
                     }
                 }
-                TextButton(onClick = { onShowOnlyReleaseVersionsChange(!showOnlyReleaseVersions) }) {
-                    Text(if (showOnlyReleaseVersions) "Показать все версии" else "Показать только релизы")
+                TextButton(onClick = { viewModel.showOnlyReleaseVersions = !viewModel.showOnlyReleaseVersions }) {
+                    Text(if (viewModel.showOnlyReleaseVersions) "Показать все версии" else "Показать только релизы")
                 }
             }
         }
 
         Spacer(Modifier.height(16.dp))
 
-        // Секция категорий
         Row(
-            modifier = Modifier.fillMaxWidth().clickable { categoriesExpanded = !categoriesExpanded },
+            modifier = Modifier.fillMaxWidth().clickable { viewModel.categoriesExpanded = !viewModel.categoriesExpanded },
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(stringResource(Res.string.categories), style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-            IconButton(onClick = { categoriesExpanded = !categoriesExpanded }) {
+            IconButton(onClick = { viewModel.categoriesExpanded = !viewModel.categoriesExpanded }) {
                 Icon(
-                    imageVector = if (categoriesExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                    contentDescription = if (categoriesExpanded) "Свернуть категории" else "Развернуть категории"
+                    imageVector = if (viewModel.categoriesExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                    contentDescription = if (viewModel.categoriesExpanded) "Свернуть категории" else "Развернуть категории"
                 )
             }
         }
         Spacer(Modifier.height(8.dp))
 
-        AnimatedVisibility(visible = categoriesExpanded) {
+        AnimatedVisibility(visible = viewModel.categoriesExpanded) {
             Column {
-                val categoriesToDisplay = if (showAllCategoriesList) filteredCategories else filteredCategories.take(7)
+                val categoriesToDisplay = if (showAllCategoriesList) viewModel.filteredCategories else viewModel.filteredCategories.take(7)
                 categoriesToDisplay.forEach { category ->
                     Surface(
                         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
@@ -143,16 +189,17 @@ fun FilterPanel(
                         val categoryIcon = ImageLoader.rememberImagePainterFromUrl(category.icon)
                         Row(
                             modifier = Modifier.fillMaxWidth().clickable {
-                                val currentState = selectedCategories[category.name]
+                                viewModel.selectedBuildForFilter = null
+                                val currentState = viewModel.selectedCategories[category.name]
                                 val nextState = when (currentState) {
                                     null -> FilterState.INCLUDED
                                     FilterState.INCLUDED -> FilterState.EXCLUDED
                                     FilterState.EXCLUDED -> null
                                 }
                                 if (nextState == null) {
-                                    selectedCategories.remove(category.name)
+                                    viewModel.selectedCategories.remove(category.name)
                                 } else {
-                                    selectedCategories[category.name] = nextState
+                                    viewModel.selectedCategories[category.name] = nextState
                                 }
                             }.padding(12.dp),
                             verticalAlignment = Alignment.CenterVertically,
@@ -166,13 +213,13 @@ fun FilterPanel(
                                     colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.onSurface)
                                 )
                             } ?: Icon(
-                                imageVector = Icons.Default.Category, // Placeholder icon
+                                imageVector = Icons.Default.Category,
                                 contentDescription = category.pretty_name,
                                 modifier = Modifier.size(24.dp),
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                             Text(category.pretty_name ?: category.name, modifier = Modifier.weight(1f).padding(start = 4.dp))
-                            AnimatedContent(targetState = selectedCategories[category.name]) { state ->
+                            AnimatedContent(targetState = viewModel.selectedCategories[category.name]) { state ->
                                 when (state) {
                                     FilterState.INCLUDED -> Icon(
                                         Icons.Default.Check,
@@ -184,15 +231,15 @@ fun FilterPanel(
                                         contentDescription = stringResource(Res.string.excluded),
                                         tint = MaterialTheme.colorScheme.error
                                     )
-                                    null -> Spacer(Modifier.size(24.dp)) // Placeholder for alignment
+                                    null -> Spacer(Modifier.size(24.dp))
                                 }
                             }
                         }
                     }
                 }
-                if (filteredCategories.size > 7) {
+                if (viewModel.filteredCategories.size > 7) {
                     TextButton(onClick = { showAllCategoriesList = !showAllCategoriesList }) {
-                        Text(if (showAllCategoriesList) "Свернуть" else "Показать больше (${filteredCategories.size - 7})")
+                        Text(if (showAllCategoriesList) "Свернуть" else "Показать больше (${viewModel.filteredCategories.size - 7})")
                     }
                 }
             }
@@ -200,24 +247,23 @@ fun FilterPanel(
 
         Spacer(Modifier.height(16.dp))
 
-        // Секция загрузчиков
         Row(
-            modifier = Modifier.fillMaxWidth().clickable { loadersExpanded = !loadersExpanded },
+            modifier = Modifier.fillMaxWidth().clickable { viewModel.loadersExpanded = !viewModel.loadersExpanded },
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(stringResource(Res.string.loaders), style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-            IconButton(onClick = { loadersExpanded = !loadersExpanded }) {
+            IconButton(onClick = { viewModel.loadersExpanded = !viewModel.loadersExpanded }) {
                 Icon(
-                    imageVector = if (loadersExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                    contentDescription = if (loadersExpanded) "Свернуть загрузчики" else "Развернуть загрузчики"
+                    imageVector = if (viewModel.loadersExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                    contentDescription = if (viewModel.loadersExpanded) "Свернуть загрузчики" else "Развернуть загрузчики"
                 )
             }
         }
         Spacer(Modifier.height(8.dp))
 
-        AnimatedVisibility(visible = loadersExpanded) {
+        AnimatedVisibility(visible = viewModel.loadersExpanded) {
             Column {
-                val loadersToDisplay = if (showAllLoadersList) filteredLoaders else filteredLoaders.take(7)
+                val loadersToDisplay = if (showAllLoadersList) viewModel.filteredLoaders else viewModel.filteredLoaders.take(7)
                 loadersToDisplay.forEach { loader ->
                     Surface(
                         modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
@@ -227,16 +273,17 @@ fun FilterPanel(
                         val loaderIcon = ImageLoader.rememberImagePainterFromUrl(loader.icon)
                         Row(
                             modifier = Modifier.fillMaxWidth().clickable {
-                                val currentState = selectedLoaders[loader.name]
+                                viewModel.selectedBuildForFilter = null
+                                val currentState = viewModel.selectedLoaders[loader.name]
                                 val nextState = when (currentState) {
                                     null -> FilterState.INCLUDED
                                     FilterState.INCLUDED -> FilterState.EXCLUDED
                                     FilterState.EXCLUDED -> null
                                 }
                                 if (nextState == null) {
-                                    selectedLoaders.remove(loader.name)
+                                    viewModel.selectedLoaders.remove(loader.name)
                                 } else {
-                                    selectedLoaders[loader.name] = nextState
+                                    viewModel.selectedLoaders[loader.name] = nextState
                                 }
                             }.padding(12.dp),
                             verticalAlignment = Alignment.CenterVertically,
@@ -250,13 +297,13 @@ fun FilterPanel(
                                     colorFilter = ColorFilter.tint(MaterialTheme.colorScheme.onSurface)
                                 )
                             } ?: Icon(
-                                imageVector = Icons.Default.Extension, // Placeholder icon
+                                imageVector = Icons.Default.Extension,
                                 contentDescription = loader.pretty_name,
                                 modifier = Modifier.size(24.dp),
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                             Text(loader.pretty_name ?: loader.name, modifier = Modifier.weight(1f).padding(start = 4.dp))
-                            AnimatedContent(targetState = selectedLoaders[loader.name]) { state ->
+                            AnimatedContent(targetState = viewModel.selectedLoaders[loader.name]) { state ->
                                 when (state) {
                                     FilterState.INCLUDED -> Icon(
                                         Icons.Default.Check,
@@ -268,15 +315,15 @@ fun FilterPanel(
                                         contentDescription = stringResource(Res.string.excluded),
                                         tint = MaterialTheme.colorScheme.error
                                     )
-                                    null -> Spacer(Modifier.size(24.dp)) // Placeholder for alignment
+                                    null -> Spacer(Modifier.size(24.dp))
                                 }
                             }
                         }
                     }
                 }
-                if (filteredLoaders.size > 7) {
+                if (viewModel.filteredLoaders.size > 7) {
                     TextButton(onClick = { showAllLoadersList = !showAllLoadersList }) {
-                        Text(if (showAllLoadersList) "Свернуть" else "Показать больше (${filteredLoaders.size - 7})")
+                        Text(if (showAllLoadersList) "Свернуть" else "Показать больше (${viewModel.filteredLoaders.size - 7})")
                     }
                 }
             }

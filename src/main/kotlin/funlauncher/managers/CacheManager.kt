@@ -12,6 +12,7 @@ import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.io.File
 import java.security.MessageDigest
+import kotlin.coroutines.cancellation.CancellationException
 
 class CacheManager(
     pathManager: PathManager,
@@ -66,6 +67,10 @@ class CacheManager(
             cacheFile.writeText(json.encodeToString(fetchedData))
             println("CacheManager: Успешно получены и закэшированы данные для ключа: $key")
             fetchedData
+        } catch (e: CancellationException) {
+            // This is not an error, but a normal cancellation of a coroutine.
+            // We re-throw it to let the coroutine system handle it.
+            throw e
         } catch (e: Exception) {
             println("CacheManager: Ошибка при выполнении fetcher() для ключа: $key. Ошибка: ${e.stackTraceToString()}")
             null
