@@ -20,6 +20,7 @@ import java.net.UnknownHostException
 import kotlin.io.path.exists
 import java.io.File
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import kotlin.coroutines.coroutineContext
 import kotlinx.coroutines.job
@@ -73,12 +74,13 @@ class MinecraftInstaller(private val build: MinecraftBuild, private val buildMan
 
             DownloadManager.updateTask(task.id, 1.0f, "Игра запущена")
             logger.info("Game started successfully.")
+            delay(2000) // Даем увидеть 100%
             return process
 
         } catch (e: Exception) {
             handleLaunchException(e)
         } finally {
-            DownloadManager.endTask(task.id)
+            DownloadManager.removeTask(task.id)
         }
     }
 

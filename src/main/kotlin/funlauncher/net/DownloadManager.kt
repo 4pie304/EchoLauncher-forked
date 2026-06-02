@@ -8,26 +8,23 @@
 
 package funlauncher.net
 
-import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
-import kotlinx.coroutines.*
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
 import java.util.*
 
 /**
  * Представляет одну задачу загрузки.
- * @param id Уникальный идентификатор задачи.
- * @param description Описание того, что загружается (например, "Java 21" или "Minecraft 1.20.4").
- * @param job Задание корутины, выполняющее загрузку, для возможности отмены.
- * @param progress Прогресс от 0.0f до 1.0f.
- * @param status Текущий текстовый статус (например, "Скачивание..." или "Распаковка...").
  */
 data class DownloadTask(
     val id: String,
     val description: String,
     val job: Job,
-    val progress: MutableState<Float> = mutableStateOf(0f),
-    val status: MutableState<String> = mutableStateOf("В очереди...")
+    val progress: androidx.compose.runtime.State<Float> = mutableStateOf(0f),
+    val status: androidx.compose.runtime.State<String> = mutableStateOf("В очереди...")
 )
 
 /**
@@ -61,33 +58,33 @@ object DownloadManager {
     /**
      * Обновляет прогресс и статус существующей задачи.
      */
-    fun updateTask(id: String, progress: Float, status: String) {
+    fun updateTask(id: String, newProgress: Float, newStatus: String) {
         scope.launch {
-            tasks.find { it.id == id }?.let {
-                it.progress.value = progress
-                it.status.value = status
+            tasks.find { it.id == id }?.let { task ->
+                (task.progress as androidx.compose.runtime.MutableState).value = newProgress
+                (task.status as androidx.compose.runtime.MutableState).value = newStatus
             }
         }
     }
 
     /**
-     * Завершает задачу и удаляет ее из списка.
-     */
-    fun endTask(id: String) {
-        scope.launch {
-            tasks.removeAll { it.id == id }
-        }
-    }
-
-    /**
-     * Отменяет задачу, связанную с ней корутину, и удаляет из списка.
+     * Отменяет задачу и удаляет ее из списка.
      */
     fun cancelTask(id: String) {
         scope.launch {
             tasks.find { it.id == id }?.let {
-                it.job.cancel() // Отменяем корутину
-                tasks.remove(it) // Удаляем из списка
+                it.job.cancel()
+                tasks.remove(it)
             }
+        }
+    }
+
+    /**
+     * Удаляет задачу из списка.
+     */
+    fun removeTask(id: String) {
+        scope.launch {
+            tasks.removeIf { it.id == id }
         }
     }
 }

@@ -36,9 +36,7 @@ fun ModificationList(
         LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
             items(viewModel.searchResult?.hits ?: emptyList()) { hit ->
                 ModificationCard(hit) {
-                    viewModel.loadProjectDetails(hit.projectId) { project ->
-                        viewModel.selectedProject = project
-                    }
+                    viewModel.selectProject(hit)
                 }
             }
 

@@ -49,8 +49,8 @@ class VersionMetadataFetcher(private val buildManager: BuildManager, private val
     }
 
     suspend fun getVanillaVersions(): List<String> {
-        val manifest = client.get("https://piston-meta.mojang.com/mc/game/version_manifest_v2.json").body<VersionManifest>()
-        return manifest.versions.map { it.id }
+        val manifest = client.get("https://launchermeta.mojang.com/mc/game/version_manifest.json").body<VersionManifest>()
+        return manifest.versions.filter { it.type == "release" }.map { it.id }
     }
 
     suspend fun getVersionInfo(build: MinecraftBuild, task: DownloadTask? = null): VersionInfo {

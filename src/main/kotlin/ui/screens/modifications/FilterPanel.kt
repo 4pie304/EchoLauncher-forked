@@ -37,21 +37,6 @@ import ui.widgets.ImageLoader
 fun FilterPanel(
     viewModel: ModificationsViewModel
 ) {
-    val displayedVersions = remember(viewModel.allVanillaVersions, viewModel.showOnlyReleaseVersions) {
-        if (viewModel.showOnlyReleaseVersions) {
-            viewModel.allVanillaVersions.filter { version ->
-                !version.contains("snapshot", ignoreCase = true) &&
-                        !version.contains("pre-release", ignoreCase = true) &&
-                        !version.contains("rc", ignoreCase = true) &&
-                        !version.contains("alpha", ignoreCase = true) &&
-                        !version.contains("beta", ignoreCase = true)
-            }
-        } else {
-            viewModel.allVanillaVersions
-        }
-    }
-
-    var showAllVersionsList by remember { mutableStateOf(false) }
     var showAllCategoriesList by remember { mutableStateOf(false) }
     var showAllLoadersList by remember { mutableStateOf(false) }
 
@@ -66,98 +51,33 @@ fun FilterPanel(
             .padding(16.dp)
             .verticalScroll(rememberScrollState())
     ) {
-        Text("Фильтр по сборке", style = MaterialTheme.typography.titleMedium)
-        Spacer(Modifier.height(8.dp))
-        ExposedDropdownMenuBox(
-            expanded = viewModel.buildDropdownExpanded,
-            onExpandedChange = { viewModel.buildDropdownExpanded = !viewModel.buildDropdownExpanded },
-            modifier = Modifier.fillMaxWidth()
+        val isVersionSelectionEnabled = viewModel.selectedBuildForFilter == null
+
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(8.dp),
+            tonalElevation = 2.dp,
+            enabled = isVersionSelectionEnabled,
+            onClick = {
+                if (isVersionSelectionEnabled) {
+                    viewModel.showVersionSelectionDialog = true
+                }
+            }
         ) {
-            OutlinedTextField(
-                value = viewModel.selectedBuildForFilter?.name ?: "Не выбрана",
-                onValueChange = {},
-                readOnly = true,
-                label = { Text("Сборка") },
-                trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = viewModel.buildDropdownExpanded) },
-                modifier = Modifier.menuAnchor().fillMaxWidth()
-            )
-            ExposedDropdownMenu(
-                expanded = viewModel.buildDropdownExpanded,
-                onDismissRequest = { viewModel.buildDropdownExpanded = false }
+            Row(
+                modifier = Modifier.padding(12.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                DropdownMenuItem(
-                    text = { Text("Не выбрана") },
-                    onClick = {
-                        viewModel.selectedBuildForFilter = null
-                        viewModel.selectedVersions.clear()
-                        viewModel.selectedLoaders.clear()
-                        viewModel.buildDropdownExpanded = false
-                    }
-                )
-                viewModel.allBuilds.forEach { build ->
-                    DropdownMenuItem(
-                        text = { Text(build.name) },
-                        onClick = {
-                            viewModel.selectedBuildForFilter = build
-                            viewModel.buildDropdownExpanded = false
-                        }
-                    )
-                }
-            }
-        }
-        Spacer(Modifier.height(16.dp))
-        Divider()
-        Spacer(Modifier.height(16.dp))
-
-        Row(
-            modifier = Modifier.fillMaxWidth().clickable { viewModel.versionsExpanded = !viewModel.versionsExpanded },
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(stringResource(Res.string.versions), style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-            IconButton(onClick = { viewModel.versionsExpanded = !viewModel.versionsExpanded }) {
                 Icon(
-                    imageVector = if (viewModel.versionsExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
-                    contentDescription = if (viewModel.versionsExpanded) "Свернуть версии" else "Развернуть версии"
+                    Icons.Default.List,
+                    contentDescription = "Выбрать версии",
+                    tint = if (isVersionSelectionEnabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
                 )
-            }
-        }
-        Spacer(Modifier.height(8.dp))
-
-        AnimatedVisibility(visible = viewModel.versionsExpanded) {
-            Column {
-                val versionsToDisplay = if (showAllVersionsList) displayedVersions else displayedVersions.take(7)
-                versionsToDisplay.forEach { version ->
-                    Surface(
-                        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
-                        shape = RoundedCornerShape(8.dp),
-                        tonalElevation = 2.dp
-                    ) {
-                        Row(
-                            modifier = Modifier.clickable {
-                                viewModel.selectedBuildForFilter = null
-                                if (version in viewModel.selectedVersions) viewModel.selectedVersions.remove(version) else viewModel.selectedVersions.add(version)
-                            }.padding(12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Checkbox(
-                                checked = version in viewModel.selectedVersions,
-                                onCheckedChange = {
-                                    viewModel.selectedBuildForFilter = null
-                                    if (it) viewModel.selectedVersions.add(version) else viewModel.selectedVersions.remove(version)
-                                }
-                            )
-                            Text(version, modifier = Modifier.padding(start = 4.dp))
-                        }
-                    }
-                }
-                if (displayedVersions.size > 7) {
-                    TextButton(onClick = { showAllVersionsList = !showAllVersionsList }) {
-                        Text(if (showAllVersionsList) "Свернуть" else "Показать больше (${displayedVersions.size - 7})")
-                    }
-                }
-                TextButton(onClick = { viewModel.showOnlyReleaseVersions = !viewModel.showOnlyReleaseVersions }) {
-                    Text(if (viewModel.showOnlyReleaseVersions) "Показать все версии" else "Показать только релизы")
-                }
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    text = if (viewModel.selectedVersions.isEmpty()) "Выбрать версии" else viewModel.selectedVersions.joinToString(),
+                    color = if (isVersionSelectionEnabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                )
             }
         }
 
@@ -189,7 +109,6 @@ fun FilterPanel(
                         val categoryIcon = ImageLoader.rememberImagePainterFromUrl(category.icon)
                         Row(
                             modifier = Modifier.fillMaxWidth().clickable {
-                                viewModel.selectedBuildForFilter = null
                                 val currentState = viewModel.selectedCategories[category.name]
                                 val nextState = when (currentState) {
                                     null -> FilterState.INCLUDED
@@ -248,11 +167,23 @@ fun FilterPanel(
         Spacer(Modifier.height(16.dp))
 
         Row(
-            modifier = Modifier.fillMaxWidth().clickable { viewModel.loadersExpanded = !viewModel.loadersExpanded },
+            modifier = Modifier.fillMaxWidth().clickable {
+                if (viewModel.selectedBuildForFilter == null) {
+                    viewModel.loadersExpanded = !viewModel.loadersExpanded
+                }
+            },
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(stringResource(Res.string.loaders), style = MaterialTheme.typography.titleMedium, modifier = Modifier.weight(1f))
-            IconButton(onClick = { viewModel.loadersExpanded = !viewModel.loadersExpanded }) {
+            Text(
+                stringResource(Res.string.loaders),
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.weight(1f),
+                color = if (viewModel.selectedBuildForFilter != null) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f) else MaterialTheme.colorScheme.onSurface
+            )
+            IconButton(
+                onClick = { viewModel.loadersExpanded = !viewModel.loadersExpanded },
+                enabled = viewModel.selectedBuildForFilter == null
+            ) {
                 Icon(
                     imageVector = if (viewModel.loadersExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
                     contentDescription = if (viewModel.loadersExpanded) "Свернуть загрузчики" else "Развернуть загрузчики"
@@ -261,7 +192,7 @@ fun FilterPanel(
         }
         Spacer(Modifier.height(8.dp))
 
-        AnimatedVisibility(visible = viewModel.loadersExpanded) {
+        AnimatedVisibility(visible = viewModel.loadersExpanded && viewModel.selectedBuildForFilter == null) {
             Column {
                 val loadersToDisplay = if (showAllLoadersList) viewModel.filteredLoaders else viewModel.filteredLoaders.take(7)
                 loadersToDisplay.forEach { loader ->
@@ -273,7 +204,6 @@ fun FilterPanel(
                         val loaderIcon = ImageLoader.rememberImagePainterFromUrl(loader.icon)
                         Row(
                             modifier = Modifier.fillMaxWidth().clickable {
-                                viewModel.selectedBuildForFilter = null
                                 val currentState = viewModel.selectedLoaders[loader.name]
                                 val nextState = when (currentState) {
                                     null -> FilterState.INCLUDED

@@ -131,6 +131,7 @@ compose.desktop {
                 if (isTestBuild) {
                     console = true
                 }
+                iconFile.set(project.file("src/main/resources/logo.ico"))
             }
         }
     }

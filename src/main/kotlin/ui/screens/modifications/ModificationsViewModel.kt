@@ -12,6 +12,7 @@ import funlauncher.managers.CacheManager
 import funlauncher.managers.PathManager
 import funlauncher.modpack.ModpackInstaller
 import funlauncher.net.*
+import funlauncher.utils.VersionMatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -26,7 +27,6 @@ class ModificationsViewModel(
     private val coroutineScope: CoroutineScope
 ) {
     private val modrinthApi = ModrinthApi(cacheManager)
-    private val modificationDownloader = ModificationDownloader()
     private val versionMetadataFetcher = VersionMetadataFetcher(buildManager, pathManager)
     val modpackInstaller = ModpackInstaller(buildManager, modrinthApi, pathManager, coroutineScope)
 
@@ -34,9 +34,10 @@ class ModificationsViewModel(
     var searchResult by mutableStateOf<SearchResult?>(null)
     var isLoading by mutableStateOf(false)
 
-    // New state for build filter
     var selectedBuildForFilter by mutableStateOf<MinecraftBuild?>(null)
-    var buildDropdownExpanded by mutableStateOf(false)
+    var showBuildSelectionDialog by mutableStateOf(false)
+    var showVersionSelectionDialog by mutableStateOf(false)
+    var showInstallDialog by mutableStateOf(false)
 
     // Pagination states
     var currentPage by mutableStateOf(0)
@@ -44,17 +45,13 @@ class ModificationsViewModel(
     var isLoadingMore by mutableStateOf(false)
     var hasMoreResults by mutableStateOf(true)
 
-
     var selectedProject by mutableStateOf<Project?>(null)
     var projectVersions by mutableStateOf<List<Version>>(emptyList())
-    var isLoadingProject by mutableStateOf(false)
+    var isLoadingProjectDetails by mutableStateOf(false)
 
-    var versionToInstall by mutableStateOf<Version?>(null)
     val allBuilds = mutableStateListOf<MinecraftBuild>()
 
     var selectedType by mutableStateOf(ModificationType.MODS) // Default to MODS
-    val allVanillaVersions = mutableStateListOf<String>() // Храним все версии
-    val selectedVersions = mutableStateListOf<String>()
 
     val allCategories = mutableStateListOf<ModrinthCategoryTag>()
     val allLoaders = mutableStateListOf<ModrinthLoaderTag>()
@@ -64,16 +61,14 @@ class ModificationsViewModel(
 
     val selectedCategories = mutableStateMapOf<String, FilterState>() // Key is category.name
     val selectedLoaders = mutableStateMapOf<String, FilterState>() // Key is loader.name
-
-    var versionLoadTrigger by mutableStateOf(0)
-
-    // Состояния для сворачиваемых списков
-    var versionsExpanded by mutableStateOf(true)
+    
+    val allVanillaVersions = mutableStateListOf<String>()
+    val selectedVersions = mutableStateListOf<String>()
+    
     var categoriesExpanded by mutableStateOf(true)
     var loadersExpanded by mutableStateOf(true)
-
-    // Состояние для отображения всех версий (релизы vs все)
-    var showOnlyReleaseVersions by mutableStateOf(true)
+    
+    var isFilterPanelVisible by mutableStateOf(true)
 
     fun init() {
         coroutineScope.launch {
@@ -103,10 +98,10 @@ class ModificationsViewModel(
             }
         }
     }
-
-    fun loadVersions() {
+    
+    private fun loadVersions() {
         coroutineScope.launch(Dispatchers.IO) {
-            val cachedVersions = cacheManager.getOrFetch<List<String>>("vanilla_versions") {
+            val cachedVersions = cacheManager.getOrFetch<List<String>>("vanilla_versions_release") {
                 versionMetadataFetcher.getVanillaVersions()
             }
             if (cachedVersions != null) {
@@ -116,7 +111,6 @@ class ModificationsViewModel(
                 }
             }
 
-            // Background update
             try {
                 val freshVersions = versionMetadataFetcher.getVanillaVersions()
                 if (freshVersions.sorted() != cachedVersions?.sorted()) {
@@ -124,8 +118,7 @@ class ModificationsViewModel(
                         allVanillaVersions.clear()
                         allVanillaVersions.addAll(freshVersions)
                     }
-                    // Update cache in the background
-                    cacheManager.getOrFetch<List<String>>("vanilla_versions") { freshVersions }
+                    cacheManager.getOrFetch<List<String>>("vanilla_versions_release") { freshVersions }
                 }
             } catch (e: Exception) {
                 // Handle error
@@ -133,8 +126,72 @@ class ModificationsViewModel(
         }
     }
 
+
     fun onDispose() {
         modrinthApi.close()
+    }
+
+    fun selectProject(hit: Hit) {
+        // Create a temporary Project object from the Hit to show immediately
+        val tempProject = Project(
+            id = hit.projectId,
+            slug = hit.slug,
+            projectType = hit.projectType,
+            team = "", // Not available in Hit
+            title = hit.title,
+            description = hit.description,
+            body = "", // Body is not available in Hit, will be loaded later
+            bodyUrl = null,
+            published = hit.dateCreated,
+            updated = hit.dateModified,
+            status = "approved", // Assume approved if it's in search results
+            license = License(id = hit.license, name = hit.license, url = ""),
+            clientSide = "required", // Default values
+            serverSide = "required",
+            downloads = hit.downloads,
+            followers = hit.follows,
+            categories = hit.categories,
+            versionIds = emptyList(),
+            iconUrl = hit.iconUrl,
+            gameVersions = emptyList(),
+            loaders = emptyList(),
+            gallery = emptyList()
+        )
+        
+        selectedProject = tempProject
+        projectVersions = emptyList()
+        isLoadingProjectDetails = true
+
+        coroutineScope.launch(Dispatchers.IO) {
+            try {
+                val fullProject = modrinthApi.getProject(hit.projectId)
+                val versions = modrinthApi.getProjectVersions(hit.projectId)
+                withContext(Dispatchers.Main) {
+                    selectedProject = fullProject
+                    projectVersions = versions
+                }
+            } catch (e: Exception) {
+                // Handle error, maybe show snackbar
+            } finally {
+                withContext(Dispatchers.Main) {
+                    isLoadingProjectDetails = false
+                }
+            }
+        }
+    }
+
+    fun getFilteredVersionsForInstall(): List<Version> {
+        val build = selectedBuildForFilter ?: return projectVersions
+        
+        val ignoreLoaderCheck = selectedType == ModificationType.RESOURCE_PACKS || 
+                                selectedType == ModificationType.SHADERS ||
+                                selectedType == ModificationType.DATAPACKS
+
+        return projectVersions.filter { version ->
+            val versionMatch = version.gameVersions.any { gameVersion -> VersionMatcher.isCompatible(build.version, gameVersion) }
+            val loaderMatch = ignoreLoaderCheck || version.loaders.isEmpty() || version.loaders.any { loader -> build.type.name.contains(loader, ignoreCase = true) }
+            versionMatch && loaderMatch
+        }
     }
 
     fun buildFacetsList(): MutableList<List<String>> {
@@ -147,7 +204,7 @@ class ModificationsViewModel(
             selectedType.projectType
         }
         facetsList.add(listOf("project_type:$actualProjectType"))
-
+        
         // Game Versions
         if (selectedVersions.isNotEmpty()) {
             facetsList.add(selectedVersions.map { "versions:$it" })
@@ -232,27 +289,6 @@ class ModificationsViewModel(
         }
     }
 
-    fun loadProjectDetails(projectId: String, onProjectLoaded: (Project) -> Unit) {
-        isLoadingProject = true
-        coroutineScope.launch(Dispatchers.IO) {
-            try {
-                val fullProject = modrinthApi.getProject(projectId)
-                val versions = modrinthApi.getProjectVersions(projectId)
-                withContext(Dispatchers.Main) {
-                    selectedProject = fullProject
-                    projectVersions = versions
-                    onProjectLoaded(fullProject)
-                }
-            } catch (e: Exception) {
-                // Handle error
-            } finally {
-                withContext(Dispatchers.Main) {
-                    isLoadingProject = false
-                }
-            }
-        }
-    }
-
     fun filterCategoriesAndLoaders() {
         filteredCategories.clear()
         selectedCategories.clear() // Clear selections when type changes
@@ -280,23 +316,26 @@ class ModificationsViewModel(
         val build = selectedBuildForFilter
         if (build != null) {
             // 1. Find the best matching game version from the build's version string.
-            val fullVersion = build.version // e.g., "1.21.11-fabric-0.19.2"
+            val fullVersion = build.version
             val bestMatch = allVanillaVersions
-                .filter { vanillaVersion -> fullVersion.startsWith(vanillaVersion) }
+                .filter { vanillaVersion -> VersionMatcher.isCompatible(fullVersion, vanillaVersion) }
                 .maxByOrNull { it.length }
 
             selectedVersions.clear()
             if (bestMatch != null) {
                 selectedVersions.add(bestMatch)
             }
-
-            // 2. Set Loader from build.type
+            
+            // Set Loader from build.type
             val buildLoaderName = build.type.name.lowercase() // e.g., "fabric", "forge"
             val matchingLoader = allLoaders.find { it.name.lowercase() == buildLoaderName }
             selectedLoaders.clear()
             if (matchingLoader != null) {
                 selectedLoaders[matchingLoader.name] = FilterState.INCLUDED
             }
+        } else {
+            selectedVersions.clear()
+            selectedLoaders.clear()
         }
     }
 }

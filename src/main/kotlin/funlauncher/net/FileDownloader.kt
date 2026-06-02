@@ -12,11 +12,10 @@ import funlauncher.BuildType
 import funlauncher.MinecraftBuild
 import funlauncher.game.AssetIndex
 import funlauncher.game.VersionInfo
-import funlauncher.game.VersionMetadataFetcher
 import funlauncher.managers.BuildManager
 import funlauncher.managers.PathManager
+import funlauncher.utils.Hashing
 import io.ktor.client.call.*
-import io.ktor.client.plugins.*
 import io.ktor.client.request.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.sync.Semaphore
@@ -49,14 +48,10 @@ class FileDownloader(
         // 1. Download Client JAR
         val gameVersionForJar = getGameVersionForJar(build)
         val clientJarPath = globalVersionsDir.resolve(gameVersionForJar).resolve("$gameVersionForJar.jar")
-        if (!clientJarPath.exists()) {
-            val clientDownloadUrl = versionInfo.downloads?.client?.url
-            if (clientDownloadUrl != null) {
-                downloadFile(clientDownloadUrl, clientJarPath, "Client JAR")
-            } else {
-                log("Client JAR download URL not found for version ${versionInfo.id}, assuming it's provided by a modloader.")
-            }
-        }
+        versionInfo.downloads?.client?.let {
+            downloadFile(it.url, clientJarPath, "Client JAR")
+        } ?: log("Client JAR download URL not found for version ${versionInfo.id}, assuming it's provided by a modloader.")
+
 
         // 2. Download Libraries
         val libraries = versionInfo.libraries.filter { isRuleApplicable(it.rules ?: emptyList()) }
@@ -85,17 +80,17 @@ class FileDownloader(
 
     private suspend fun downloadLibrary(lib: VersionInfo.Library) {
         val defaultRepo = "https://libraries.minecraft.net/"
-        
+
         // Main artifact
         lib.downloads?.artifact?.let { artifact ->
             val path = globalLibrariesDir.resolve(artifact.path)
-            downloadFile(artifact.url, path, "Lib: ${lib.name}")
+            downloadFile(artifact.url, path, "Lib: ${lib.name}", artifact.size, artifact.sha1)
         } ?: run {
             // Если downloads == null (старые версии Minecraft)
             val artifactPath = getArtifactPath(lib.name)
             val path = globalLibrariesDir.resolve(artifactPath)
             val url = (lib.url ?: defaultRepo) + artifactPath
-            
+
             try {
                 downloadFile(url, path, "Lib: ${lib.name}")
             } catch (e: Exception) {
@@ -125,7 +120,7 @@ class FileDownloader(
                     if (lib.downloads != null) {
                         lib.downloads.classifiers?.get(classifier)?.let { nativeArtifact ->
                             val path = globalLibrariesDir.resolve(nativeArtifact.path)
-                            downloadFile(nativeArtifact.url, path, "Native: ${lib.name}")
+                            downloadFile(nativeArtifact.url, path, "Native: ${lib.name}", nativeArtifact.size, nativeArtifact.sha1)
                         }
                     } else {
                         // Legacy handling for old versions (1.5.2, etc.)
@@ -148,9 +143,13 @@ class FileDownloader(
                 try {
                     val p = asset.hash.substring(0, 2)
                     val path = globalAssetsDir.resolve("objects").resolve(p).resolve(asset.hash)
-                    if (!path.exists() || path.fileSize() != asset.size) {
-                        downloadFile("https://resources.download.minecraft.net/$p/${asset.hash}", path, "Asset")
-                    }
+                    downloadFile(
+                        "https://resources.download.minecraft.net/$p/${asset.hash}",
+                        path,
+                        "Asset",
+                        asset.size,
+                        asset.hash
+                    )
                     val c = counter.incrementAndGet()
                     if (c % 100 == 0) onProgress(c.toFloat() / assets.size, "Assets: $c/${assets.size}")
                 } finally {
@@ -160,8 +159,19 @@ class FileDownloader(
         }.awaitAll()
     }
 
-    private suspend fun downloadFile(url: String, path: Path, desc: String) {
-        if (path.exists() && path.fileSize() > 0) return
+    private suspend fun downloadFile(url: String, path: Path, desc: String, size: Long? = null, sha1: String? = null) {
+        if (path.exists()) {
+            if (size != null && path.fileSize() != size) {
+                log("File $desc has wrong size. Deleting and redownloading.")
+                path.deleteIfExists()
+            } else if (sha1 != null && Hashing.getSha1(path) != sha1) {
+                log("File $desc has wrong hash. Deleting and redownloading.")
+                path.deleteIfExists()
+            } else {
+                return // File is valid
+            }
+        }
+
 
         val maxRetries = 3
         val retryDelay = 3000L
@@ -175,6 +185,13 @@ class FileDownloader(
                 if (resp.status.value == 200) {
                     path.writeBytes(resp.body())
                     log("Successfully downloaded $desc")
+                    // Verify after download
+                    if (size != null && path.fileSize() != size) {
+                        throw Exception("Downloaded file size mismatch")
+                    }
+                    if (sha1 != null && Hashing.getSha1(path) != sha1) {
+                        throw Exception("Downloaded file hash mismatch")
+                    }
                     return
                 }
                 throw Exception("HTTP ${resp.status.value}")
@@ -198,7 +215,7 @@ class FileDownloader(
         val classifierStr = if (classifier != null) "-$classifier" else ""
         return "$groupPath/$artifactName/$version/$artifactName-$version$classifierStr.jar"
     }
-    
+
     private fun getGameVersionForJar(build: MinecraftBuild): String = when (build.type) {
         BuildType.FABRIC -> build.version.split("-fabric-").first()
         BuildType.FORGE -> build.version.split("-forge-").first()

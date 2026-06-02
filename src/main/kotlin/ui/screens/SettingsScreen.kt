@@ -8,6 +8,7 @@
 
 package ui.screens
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -26,6 +27,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import funlauncher.AppSettings
@@ -35,6 +37,10 @@ import funlauncher.game.VersionMetadataFetcher
 import funlauncher.openUri
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
+import org.chokopieum.software.materia_launcher.generated.resources.GitHub
+import org.chokopieum.software.materia_launcher.generated.resources.MLicon
+import org.chokopieum.software.materia_launcher.generated.resources.Res
+import org.jetbrains.compose.resources.painterResource
 import ui.dialogs.LaunchSettingsDialog
 import ui.viewmodel.AccountViewModel
 import java.io.File
@@ -389,111 +395,98 @@ private fun CacheSettings(
 
 @Composable
 private fun AboutScreen() {
-    val asciiArt = """
-   /'\_/`\          /\ \__                __             /\ \                              /\ \                     
-/\      \     __  \ \ ,_\    __   _ __ /\_\     __     \ \ \         __     __  __    ___\ \ \___      __   _ __  
-\ \ \__\ \  /'__`\ \ \ \/  /'__`\/\`'__\/\ \  /'__`\    \ \ \  __  /'__`\  /\ \/\ \  /'___\ \  _ `\  /'__`\/\`'__\
- \ \ \_/\ \/\ \L\.\_\ \ \_/\  __/\ \ \/ \ \ \/\ \L\.\_   \ \ \L\ \/\ \L\.\_\ \ \_\ \/\ \__/\ \ \ \ \/\  __/\ \ \/ 
-  \ \_\\ \_\ \__/.\_\\ \__\ \____\\ \_\  \ \_\ \__/.\_\   \ \____/\ \__/.\_\\ \____/\ \____\\ \_\ \_\ \____\\ \_\ 
-   \/_/ \/_/\/__/\/_/ \/__/\/____/ \/_/   \/_/\/__/\/_/    \/___/  \/__/\/_/ \/___/  \/____/ \/_/\/_/\/____/ \/_/ 
-""".trimIndent()
+    var showTechInfo by remember { mutableStateOf(false) }
 
-    val versionText = when (AppInfo.version) {
-        "Beta", "Canary", "Develop Build", "Community Build" -> "${AppInfo.version} (Build ${AppInfo.buildNumber})"
-        else -> AppInfo.version // Для тегов (релизов) показываем только версию
-    }
-
-    val infoItems = mapOf(
-        "Version" to versionText,
-        "Source" to AppInfo.buildSource,
-        "Gradle" to AppInfo.gradleVersion,
-        "OS" to AppInfo.osInfo,
-        "Render API" to AppInfo.renderApi,
-        "Author" to "Chokopieum Software 2025-2026",
-        "GitHub" to "https://github.com/Chokopieum-Software/MateriaKraft-Launcher"
-    )
-
-    Surface(
-        modifier = Modifier.fillMaxSize(),
-        color = Color(0xFF1E1E1E), // Dark console background
-        shape = RoundedCornerShape(8.dp)
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(16.dp)
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(16.dp)
-                .verticalScroll(rememberScrollState())
-        ) {
-            val promptColor = Color(0xFF6A9FB5)
-            val commandColor = Color(0xFFC586C0)
-            val textColor = Color(0xFFCE9178)
-            val keyColor = Color(0xFF9CDCFE)
+        Image(
+            painter = painterResource(Res.drawable.MLicon),
+            contentDescription = "Materia Logo",
+            modifier = Modifier.size(128.dp)
+        )
+        Text(
+            text = "Materia",
+            style = MaterialTheme.typography.headlineLarge,
+            color = MaterialTheme.colorScheme.onSurface
+        )
 
-            Text(
-                text = buildAnnotatedString {
-                    withStyle(style = SpanStyle(color = promptColor)) {
-                        append("user@materiakraft")
-                    }
-                    withStyle(style = SpanStyle(color = textColor)) {
-                        append(":~$ ")
-                    }
-                    withStyle(style = SpanStyle(color = commandColor)) {
-                        append("materia --info")
-                    }
-                },
-                fontFamily = FontFamily.Monospace,
-                style = MaterialTheme.typography.bodyMedium
-            )
+        Spacer(Modifier.height(8.dp))
 
-            Spacer(Modifier.height(16.dp))
+        Text("Версия: ${AppInfo.version}", color = MaterialTheme.colorScheme.onSurface)
+        Text("Сборка: ${AppInfo.buildNumber}", color = MaterialTheme.colorScheme.onSurface)
 
-            Text(
-                text = asciiArt,
-                fontFamily = FontFamily.Monospace,
-                color = MaterialTheme.colorScheme.primary,
-                style = MaterialTheme.typography.labelSmall,
-                modifier = Modifier.fillMaxWidth()
-            )
+        Spacer(Modifier.height(8.dp))
 
-            Spacer(Modifier.height(16.dp))
-
-            infoItems.forEach { (key, value) ->
-                Row {
-                    Text(
-                        text = "${key.padEnd(10)}: ",
-                        fontFamily = FontFamily.Monospace,
-                        color = keyColor,
-                        style = MaterialTheme.typography.bodyMedium
-                    )
-                    if (key == "GitHub") {
-                        TextButton(onClick = { openUri(URI(value)) }, contentPadding = PaddingValues(0.dp)) {
-                            Text(
-                                text = value,
-                                fontFamily = FontFamily.Monospace,
-                                color = textColor,
-                                style = MaterialTheme.typography.bodyMedium,
-                            )
-                        }
-                    } else {
-                        Text(
-                            text = value,
-                            fontFamily = FontFamily.Monospace,
-                            color = textColor,
-                            style = MaterialTheme.typography.bodyMedium
-                        )
-                    }
-                }
-                Spacer(Modifier.height(4.dp))
-            }
-
-            Spacer(Modifier.height(24.dp))
-
-            Text(
-                text = "LEGAL: NOT AN OFFICIAL MINECRAFT PRODUCT. NOT APPROVED BY OR ASSOCIATED WITH MOJANG OR MICROSOFT.",
-                fontFamily = FontFamily.Monospace,
-                color = Color.Gray,
-                style = MaterialTheme.typography.labelSmall
+        IconButton(onClick = { openUri(URI("https://github.com/Chokopieum-Software/MateriaKraft-Launcher")) }) {
+            Image(
+                painter = painterResource(Res.drawable.GitHub),
+                contentDescription = "GitHub",
+                modifier = Modifier.size(32.dp)
             )
         }
+
+        Divider(modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp))
+
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Text(
+                    text = "Благодарности",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Spacer(Modifier.height(8.dp))
+                Text("MarkAdderly (Тестирование, изображения)", color = MaterialTheme.colorScheme.onSurface)
+                Text("Zioldel (Тестирование)", color = MaterialTheme.colorScheme.onSurface)
+                Text("pon4iksdonut (Изображения)", color = MaterialTheme.colorScheme.onSurface)
+            }
+        }
+
+        TextButton(onClick = { showTechInfo = !showTechInfo }) {
+            Text(if (showTechInfo) "Скрыть техническую информацию" else "Показать техническую информацию")
+        }
+
+        if (showTechInfo) {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            ) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    val techInfoItems = mapOf(
+                        "Source" to AppInfo.buildSource,
+                        "Gradle" to AppInfo.gradleVersion,
+                        "OS" to AppInfo.osInfo,
+                        "Render API" to AppInfo.renderApi,
+                    )
+                    techInfoItems.forEach { (key, value) ->
+                        Row {
+                            Text(
+                                text = "${key.padEnd(12)}: ",
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Text(text = value, color = MaterialTheme.colorScheme.onSurface)
+                        }
+                    }
+                }
+            }
+        }
+        
+        Spacer(Modifier.weight(1f))
+
+        Text(
+            text = "LEGAL: NOT AN OFFICIAL MINECRAFT PRODUCT. NOT APPROVED BY OR ASSOCIATED WITH MOJANG OR MICROSOFT.",
+            style = MaterialTheme.typography.labelSmall,
+            color = Color.Gray
+        )
     }
 }

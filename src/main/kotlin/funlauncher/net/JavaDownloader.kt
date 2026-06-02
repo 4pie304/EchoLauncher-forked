@@ -22,6 +22,7 @@ import io.ktor.http.*
 import io.ktor.serialization.kotlinx.json.*
 import io.ktor.utils.io.*
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -115,6 +116,7 @@ class JavaDownloader(
 
                     val javaInfo = javaManager.getJavaInfo(javaPath.toString(), isManaged = true)
                     if (javaInfo != null) {
+                        DownloadManager.updateTask(task.id, 1.0f, "Завершено")
                         onComplete(Result.success(javaInfo))
                     } else {
                         throw Exception("Не удалось получить информацию о Java после установки.")
@@ -127,9 +129,11 @@ class JavaDownloader(
                     log("Очистка временных файлов завершена.")
                 }
             } catch (e: Exception) {
+                DownloadManager.updateTask(task.id, 0f, "Ошибка: ${e.message}")
                 onComplete(Result.failure(e))
+                delay(5000)
             } finally {
-                DownloadManager.endTask(task.id)
+                DownloadManager.removeTask(task.id)
             }
         }
     }
