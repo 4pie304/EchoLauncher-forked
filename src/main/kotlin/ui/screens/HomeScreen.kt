@@ -45,6 +45,8 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -52,6 +54,9 @@ import funlauncher.BuildType
 import funlauncher.MinecraftBuild
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import org.chokopieum.software.materia_launcher.generated.resources.Res
+import org.chokopieum.software.materia_launcher.generated.resources.monocraft
+import org.jetbrains.compose.resources.Font
 import org.jetbrains.jewel.window.TitleBarScope
 import sh.calvin.reorderable.ReorderableItem
 import sh.calvin.reorderable.rememberReorderableLazyGridState
@@ -269,13 +274,31 @@ fun ExpandedBuildScreenWrapper(
 fun TitleBarScope.TitleBarActions(
     viewModel: HomeViewModel
 ) {
-    IconButton(
-        onClick = viewModel::onOpenAccountManager,
-        modifier = Modifier.align(Alignment.Start)
+    val isDark = isSystemInDarkTheme()
+    val textColor = if (isDark) Color.White else LocalContentColor.current
+    val backgroundColor = if (isDark) Color.White.copy(alpha = 0.08f) else Color.Black.copy(alpha = 0.05f)
+
+    Row(
+        modifier = Modifier
+            .align(Alignment.Start)
+            .padding(horizontal = 8.dp)
+            .clip(RoundedCornerShape(8.dp))
+            .background(backgroundColor)
+            .clickable { viewModel.onOpenAccountManager() }
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
         AvatarImage(
             account = viewModel.currentAccount,
-            modifier = Modifier.size(32.dp).clip(SquircleShape)
+            modifier = Modifier.size(24.dp).clip(RoundedCornerShape(6.dp))
+        )
+        Text(
+            text = viewModel.currentAccount?.username ?: "Offline",
+            style = TextStyle(
+                fontFamily = FontFamily(Font(Res.font.monocraft)),
+                color = textColor
+            )
         )
     }
 }

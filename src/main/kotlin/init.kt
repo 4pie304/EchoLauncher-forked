@@ -333,7 +333,7 @@ private fun runApplication(isUiTest: Boolean) {
                         title = "Materia",
                         visible = isContentReady,
                         icon = icon,
-                        state = rememberWindowState(width = 1200.dp, height = 800.dp, position = WindowPosition(Alignment.Center), placement = WindowPlacement.Maximized),
+                        state = rememberWindowState(placement = WindowPlacement.Maximized),
                         onKeyEvent = {
                             if (it.isCtrlPressed && it.key == Key.Grave && it.type == KeyEventType.KeyDown) {
                                 LogCollector.saveLogsToDesktop()
