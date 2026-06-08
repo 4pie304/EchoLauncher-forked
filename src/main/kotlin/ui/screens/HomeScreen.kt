@@ -64,6 +64,7 @@ import ui.viewmodel.HomeViewModel
 import ui.widgets.AvatarImage
 import ui.widgets.ImageLoader
 import ui.widgets.SquircleShape
+import funlauncher.Theme
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -274,32 +275,53 @@ fun ExpandedBuildScreenWrapper(
 fun TitleBarScope.TitleBarActions(
     viewModel: HomeViewModel
 ) {
-    val isDark = isSystemInDarkTheme()
+    val isSystemDark = isSystemInDarkTheme()
+    val isDark = when(viewModel.globalSettings.theme) {
+        Theme.System -> isSystemDark
+        Theme.Light -> false
+        Theme.Dark -> true
+    }
     val textColor = if (isDark) Color.White else LocalContentColor.current
     val backgroundColor = if (isDark) Color.White.copy(alpha = 0.08f) else Color.Black.copy(alpha = 0.05f)
+    var showAccountPopup by remember { mutableStateOf(false) }
+    
+    val colorScheme = if (isDark) darkColorScheme() else lightColorScheme()
 
-    Row(
-        modifier = Modifier
-            .align(Alignment.Start)
-            .padding(horizontal = 8.dp)
-            .clip(RoundedCornerShape(8.dp))
-            .background(backgroundColor)
-            .clickable { viewModel.onOpenAccountManager() }
-            .padding(horizontal = 12.dp, vertical = 6.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
-    ) {
-        AvatarImage(
-            account = viewModel.currentAccount,
-            modifier = Modifier.size(24.dp).clip(RoundedCornerShape(6.dp))
-        )
-        Text(
-            text = viewModel.currentAccount?.username ?: "Offline",
-            style = TextStyle(
-                fontFamily = FontFamily(Font(Res.font.monocraft)),
-                color = textColor
+    Box(modifier = Modifier.align(Alignment.Start)) {
+        Row(
+            modifier = Modifier
+                .padding(horizontal = 8.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(backgroundColor)
+                .clickable { showAccountPopup = true }
+                .padding(horizontal = 12.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            AvatarImage(
+                account = viewModel.currentAccount,
+                modifier = Modifier.size(24.dp).clip(RoundedCornerShape(6.dp))
             )
-        )
+            Text(
+                text = viewModel.currentAccount?.username ?: "Offline",
+                style = TextStyle(
+                    fontFamily = FontFamily(Font(Res.font.monocraft)),
+                    color = textColor
+                )
+            )
+        }
+
+        if (showAccountPopup) {
+            AccountScreen(
+                accountManager = viewModel.accountManager,
+                onDismiss = { showAccountPopup = false },
+                onAccountSelected = { account ->
+                    viewModel.onAccountSelected(account)
+                    showAccountPopup = false
+                },
+                colorScheme = colorScheme
+            )
+        }
     }
 }
 

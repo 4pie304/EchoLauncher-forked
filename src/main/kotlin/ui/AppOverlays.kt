@@ -4,7 +4,6 @@ import androidx.compose.runtime.Composable
 import funlauncher.managers.PathManager
 import state.AppState
 import ui.dialogs.*
-import ui.screens.AccountScreen
 import ui.screens.BuildSettingsScreen
 import ui.screens.JavaManagerWindow
 import ui.viewmodel.AppViewModel
@@ -44,14 +43,6 @@ fun AppOverlays(
             onSave = { newName, newVersion, newType, newImagePath, javaPath, maxRam, javaArgs, envVars ->
                 viewModel.onSaveBuildSettings(newName, newVersion, newType, newImagePath, javaPath, maxRam, javaArgs, envVars)
             }
-        )
-    }
-
-    if (viewModel.showAccountScreen) {
-        AccountScreen(
-            accountManager = viewModel.accountManager,
-            onAccountSelected = viewModel::onAccountSelected,
-            onDismiss = { viewModel.showAccountScreen = false }
         )
     }
 

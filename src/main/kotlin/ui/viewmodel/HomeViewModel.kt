@@ -9,6 +9,7 @@ import funlauncher.auth.Account
 import funlauncher.openFolder // Keep this import as it's used in onOpenFolderClick
 import funlauncher.managers.PathManager
 import funlauncher.AppSettings
+import funlauncher.auth.AccountManager
 
 class HomeViewModel(
     private val appViewModel: AppViewModel,
@@ -32,6 +33,8 @@ class HomeViewModel(
     val isLaunchingBuildId: String? by derivedStateOf { appViewModel.isLaunchingBuildId }
     val currentAccount: Account? by derivedStateOf { appViewModel.currentAccount }
     val buildsPendingDeletion: Set<String> by derivedStateOf { appViewModel.buildsPendingDeletion.toSet() }
+
+    val accountManager: AccountManager get() = appViewModel.accountManager
 
 
     fun onSearchQueryChanged(query: String) {
@@ -58,10 +61,6 @@ class HomeViewModel(
         appViewModel.showBuildSettingsScreen = build
     }
 
-    fun onOpenAccountManager() {
-        appViewModel.showAccountScreen = true
-    }
-
     fun onBuildsReordered(from: Int, to: Int) {
         appViewModel.onBuildsReordered(from, to)
     }
@@ -73,5 +72,9 @@ class HomeViewModel(
             appViewModel.showBuildSettingsScreen = buildToUpdate
             appViewModel.onSaveBuildSettings(newName, newVersion, newType, newImagePath, javaPath, maxRam, javaArgs, envVars)
         }
+    }
+
+    fun onAccountSelected(account: Account) {
+        appViewModel.onAccountSelected(account)
     }
 }
