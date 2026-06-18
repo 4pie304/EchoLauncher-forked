@@ -100,11 +100,11 @@ class AppViewModel(
 
     fun cancelScope() {
         viewModelScope.cancel()
-        runningProcess?.destroy()
+        runningProcess?.destroyForcibly()
     }
 
     private fun stopGame() {
-        runningProcess?.destroy()
+        runningProcess?.destroyForcibly()
         runningProcess = null
         runningBuild = null
         daemonStatus = "STOPPED"
@@ -131,27 +131,28 @@ class AppViewModel(
             val finalJavaArgs = build.javaArgs ?: appState.settings.javaArgs
             val finalEnvVars = build.envVars ?: appState.settings.envVars ?: ""
 
-            // When launching directly, we might want to set status manually
-            daemonStatus = "RUNNING"
-            runningBuild = build
-
             withContext(Dispatchers.IO) {
-                runningProcess = installer.launchGame(
+                val process = installer.launchGame(
                     account = account,
                     javaPath = javaPath,
                     maxRamMb = finalMaxRam,
                     javaArgs = finalJavaArgs,
                     envVars = finalEnvVars
                 )
+                runningProcess = process
+
+                withContext(Dispatchers.Main) {
+                    daemonStatus = "RUNNING"
+                    runningBuild = build
+                    isLaunchingBuildId = null
+                }
                 
-                runningProcess?.let { attachToProcess(it) }
+                process.let { attachToProcess(it) }
                 
-                // Wait for process to exit
-                val exitCode = runningProcess?.waitFor() ?: -1
+                val exitCode = process.waitFor() ?: -1
                 logger.info("Minecraft process exited with code $exitCode")
                 
                 withContext(Dispatchers.Main) {
-                    isLaunchingBuildId = null
                     runningBuild = null
                     daemonStatus = "STOPPED"
                     showGameConsole = false

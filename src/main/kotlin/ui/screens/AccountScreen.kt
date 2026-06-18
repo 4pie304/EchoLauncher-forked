@@ -12,6 +12,7 @@ import androidx.compose.animation.*
 import androidx.compose.animation.core.MutableTransitionState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -73,14 +74,15 @@ fun AccountScreen(
         MaterialTheme(colorScheme = colorScheme) {
             AnimatedVisibility(
                 visibleState = visibleState,
-                enter = fadeIn(tween(250)) + slideInVertically(tween(250)) { it / 8 },
-                exit = fadeOut(tween(250)) + slideOutVertically(tween(250)) { it / 8 }
+                enter = expandVertically(animationSpec = tween(250), expandFrom = Alignment.Top) + fadeIn(animationSpec = tween(250)),
+                exit = shrinkVertically(animationSpec = tween(250), shrinkTowards = Alignment.Top) + fadeOut(animationSpec = tween(250))
             ) {
                 Box(
                     modifier = Modifier
                         .width(350.dp)
                         .heightIn(max = 500.dp)
-                        .shadow(16.dp, RoundedCornerShape(16.dp))
+                        .shadow(24.dp, RoundedCornerShape(16.dp))
+                        .border(1.dp, colorScheme.outline.copy(alpha = 0.3f), RoundedCornerShape(16.dp))
                         .clip(RoundedCornerShape(16.dp))
                         .background(colorScheme.surface)
                 ) {
@@ -95,7 +97,7 @@ fun AccountScreen(
                         },
                         floatingActionButton = {
                             ExtendedFloatingActionButton(
-                                text = { Text("Войти") },
+                                text = { Text("Добавить") },
                                 icon = { Icon(Icons.Default.Add, contentDescription = "Добавить аккаунт") },
                                 onClick = { showAddAccountTypeDialog = true },
                                 containerColor = colorScheme.primaryContainer,

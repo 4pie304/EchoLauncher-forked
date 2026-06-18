@@ -427,7 +427,7 @@ private fun AboutScreen() {
             Image(
                 painter = painterResource(Res.drawable.GitHub),
                 contentDescription = "GitHub",
-                modifier = Modifier.size(32.dp)
+                modifier = Modifier.size(128.dp)
             )
         }
 

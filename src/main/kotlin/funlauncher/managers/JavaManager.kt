@@ -21,8 +21,15 @@ class JavaManager(pathManager: PathManager) {
     private val jdksDir = pathManager.getAppDataDirectory().resolve("jdks").toFile()
 
     fun getRecommendedJavaVersion(minecraftVersion: String): Int {
-        val majorVersion = minecraftVersion.split(".")[1].toIntOrNull() ?: 0
+        val parts = minecraftVersion.split('.')
+        val majorVersion = if (minecraftVersion.startsWith("1.")) {
+            parts.getOrNull(1)?.toIntOrNull() ?: 0
+        } else {
+            parts.getOrNull(0)?.toIntOrNull() ?: 0
+        }
+
         return when {
+            majorVersion >= 26 -> 25
             majorVersion >= 21 -> 21
             majorVersion >= 18 -> 17
             else -> 8
